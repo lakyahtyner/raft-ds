@@ -7,6 +7,7 @@
 #include "ServerStub.h"
 #include "ServerSocket.h"
 
+std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(1000);
 
 CustomerRecord LaptopFactory::
 GetCustomerRecord(Request rqst) {
@@ -65,12 +66,11 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 	ServerStub stub;
 
 	stub.Init(std::move(socket));
-	
-	while (true) {
-		ident = stub.ReceiveIdent();
-		if(ident == 1){
-			rqst = stub.ReceiveRequest();
+	ident = stub.ReceiveIdent();
 
+	if(ident == 1){
+		rqst = stub.ReceiveRequest();
+		while (true) {
 			if (!rqst.IsValid()) {
 				break;
 			}
@@ -90,50 +90,70 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					//std::cout << "Undefined request type in server: "
 					//	<< request_type << std::endl;
 			}
-		} else if(ident == 2) {
+		}
+	} else if(ident == 2) {
+		while(true) {
+			start_time = std::chrono::high_resolution_clock::now();
 			rprqst = stub.ReceiveRepReq();
 
-			if(!rprqst.IsValid()) {
-				primary_id = -1;
-				break;
-			}
-			primary_id = rprqst.GetFactoryId();
+			// if(!rprqst.IsValid()) {
+			// 	//primary_id = -1;
+			// 	break;
+			// }
 
-			struct MapOp new_log = {rprqst.GetUpdateMap().opcode, rprqst.GetUpdateMap().arg1, rprqst.GetUpdateMap().arg2};
-
-			smr_lock.lock();
-			smr_log.push_back(new_log);
-			smr_cv.notify_all();
-			last_index = smr_log.size() - 1;
-			smr_lock.unlock();
-
-			map_lock.lock();
-
-			if(customer_map.size() < 1){
-				customer_map.insert({smr_log[rprqst.GetCommittedIndex()].arg1, smr_log[rprqst.GetCommittedIndex()].arg2});
-			} else {
-				customer_map[smr_log[rprqst.GetCommittedIndex()].arg1] = smr_log[rprqst.GetCommittedIndex()].arg2;
+			if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
+				// start leader election
 			}
 
-			map_cv.notify_all();
-			map_lock.unlock();
+			if(rprqst.IsValid()) {
+				primary_id = rprqst.GetFactoryId();
 
-			stub.SendRepResponse();
-		} else {
-			primary_id = -1;
-			break;
+				struct MapOp new_log = {rprqst.GetUpdateMap().opcode, rprqst.GetUpdateMap().arg1, rprqst.GetUpdateMap().arg2};
+
+				smr_lock.lock();
+				smr_log.push_back(new_log);
+				smr_cv.notify_all();
+				last_index = smr_log.size() - 1;
+				smr_lock.unlock();
+
+				map_lock.lock();
+
+				if(customer_map.size() < 1){
+					customer_map.insert({smr_log[rprqst.GetCommittedIndex()].arg1, smr_log[rprqst.GetCommittedIndex()].arg2});
+				} else {
+					customer_map[smr_log[rprqst.GetCommittedIndex()].arg1] = smr_log[rprqst.GetCommittedIndex()].arg2;
+				}
+
+				map_cv.notify_all();
+				map_lock.unlock();
+
+				stub.SendRepResponse();
+			}
 		}
+	} else if (ident == 3) {
+		start_time = std::chrono::high_resolution_clock::now();
+	} else {
+		primary_id = -1;
 	}
-		
 }
 
 void LaptopFactory::ProductionAdminThread(int id, int uid) {
 	ServerStub stub;
+
+	start_time = std::chrono::high_resolution_clock::now();
 	
 	stub.peer_sockets.resize(peer_vector.size());
 	factory_id = uid;
 
 	std::unique_lock<std::mutex> ul(erq_lock, std::defer_lock);
+	int i = 0;
+	for(PeerServer peer: peer_vector) {
+		if(stub.Connect(peer, i) == 0){
+			peer_vector[i].is_up = 0;
+		};
+		i++;
+	}
+
 	while (true) {
 		ul.lock();
 
@@ -143,14 +163,6 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 
 		auto rqstpt = std::move(erq.front());
 		erq.pop();
-
-		int i = 0;
-		for(PeerServer peer: peer_vector) {
-			if(stub.Connect(peer, i) == 0){
-				peer_vector[i].is_up = 0;
-			};
-			i++;
-		}
 
 		ul.unlock();
 		//std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -172,9 +184,10 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 		int n = 0;
 		for(PeerServer peer: peer_vector) {
 			if(peer.is_up == 1) {
-				if(!stub.SendRepReq(rprqst, peer, n)){
+				if(stub.SendIdent(2, n) == -1){
 					peer.is_up = 0;
-				} else {	
+				} else {
+					stub.SendRepReq(rprqst, peer, n);
 					stub.ReceiveIdleResp(peer, n);
 				}
 			}
@@ -190,8 +203,29 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 		rqstpt->prom.set_value(rqstpt->laptop);	
 		
 		committed_index = last_index;
+		start_time = std::chrono::high_resolution_clock::now();
 
 		primary_id = factory_id;
+	}
+}
+
+void LaptopFactory::SendHeartbeatThread() {
+	ServerStub stub;
+
+	while(true){
+		if((std::chrono::high_resolution_clock::now() - start_time) == timeout) {
+			int n = 0;
+			for(PeerServer peer: peer_vector) {
+				if(peer.is_up == 1) {
+					if(stub.SendIdent(3, n) == -1){
+						peer.is_up = 0;
+					}
+				}
+				n++;
+			}
+			n = 0;
+			start_time = std::chrono::high_resolution_clock::now();
+		}
 	}
 }
 

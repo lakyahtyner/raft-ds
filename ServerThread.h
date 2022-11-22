@@ -7,6 +7,7 @@
 #include <queue>
 #include <thread>
 #include <map>
+#include <chrono>
 
 #include "Messages.h"
 #include "ServerSocket.h"
@@ -38,12 +39,16 @@ class LaptopFactory {
 		int primary_id; 
 		int factory_id;
 
+		std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
+		//std::chrono::duration<double, std::micro> elapsed_time;
+
 		CustomerRecord GetCustomerRecord(Request order);
 		LaptopInfo CreateLaptop(Request order, int engineer_id);
 
 	public:
 		void EngineerThread(std::unique_ptr<ServerSocket> socket, int id);
 		void ProductionAdminThread(int id, int uid);
+		void SendHeartbeatThread();
 		void AddPeer(PeerServer new_peer);
 };
 

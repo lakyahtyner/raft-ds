@@ -37,16 +37,9 @@ int ServerStub::ReturnRecord(CustomerRecord crcd) {
 
 int ServerStub::SendRepReq(ReplicationRequest rprqst, PeerServer peer, int i) {
 	char buffer[32];
-	char ident_buffer[32];
-	int net_ident = htonl(2);
-	MarshalIdent(ident_buffer, 2);
 	
-	if(peer_sockets[i].Send(ident_buffer, sizeof(net_ident), 0)) {	
-		rprqst.Marshal(buffer);
-		return peer_sockets[i].Send(buffer, rprqst.Size(), 0);
-	}
-
-	return 0;
+	rprqst.Marshal(buffer);
+	return peer_sockets[i].Send(buffer, rprqst.Size(), 0);
 }
 
 ReplicationRequest ServerStub::ReceiveRepReq() {
@@ -92,4 +85,12 @@ int ServerStub::ReceiveIdent(){
 
 int ServerStub::Connect(PeerServer peer, int i) {
 	return peer_sockets[i].Connect(peer.ip, peer.port);
+}
+
+int ServerStub::SendIdent(int ident, int i) {
+	char ident_buffer[32];
+	int net_ident = htonl(2);
+
+	MarshalIdent(ident_buffer, ident);
+	return peer_sockets[i].Send(ident_buffer, sizeof(net_ident), 0);
 }

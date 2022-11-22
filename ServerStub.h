@@ -28,9 +28,11 @@ public:
 	int SendRepReq(ReplicationRequest rprqst, PeerServer peer, int i);
 	int SendRepResponse();
 	int ReceiveIdleResp(PeerServer peer, int i);
+	int SendIdent(int ident, int n);
 	int ReceiveIdent();
 	ReplicationRequest ReceiveRepReq();
 	int Connect(PeerServer peer, int i);
+	void SendHeartbeat();
 };
 
 #endif // end of #ifndef __SERVER_STUB_H__
