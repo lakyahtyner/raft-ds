@@ -34,10 +34,12 @@ class LaptopFactory {
 		std::condition_variable map_cv;
 		std::map<int, int> customer_map;
 
+		int term_number = 0;
 		int last_index;
 		int committed_index = 0;
 		int primary_id; 
 		int factory_id;
+		//int votes[] = 0;
 
 		std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
 		//std::chrono::duration<double, std::micro> elapsed_time;
@@ -49,6 +51,7 @@ class LaptopFactory {
 		void EngineerThread(std::unique_ptr<ServerSocket> socket, int id);
 		void ProductionAdminThread(int id, int uid);
 		void SendHeartbeatThread();
+		void StartElectionThread();
 		void AddPeer(PeerServer new_peer);
 };
 

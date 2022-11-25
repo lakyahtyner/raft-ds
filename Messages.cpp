@@ -139,7 +139,7 @@ void ReplicationRequest::Unmarshal(char *buffer) {
 }
 
 bool ReplicationRequest::IsValid() {
-	return (factory_id != -1);
+	return (factory_id > 0);
 }
 
 void ReplicationRequest::Print() {

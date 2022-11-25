@@ -128,10 +128,10 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 				map_lock.unlock();
 
 				stub.SendRepResponse();
+			} else if (rprqst.GetFactoryId() == -2) {
+				start_time = std::chrono::high_resolution_clock::now();
 			}
 		}
-	} else if (ident == 3) {
-		start_time = std::chrono::high_resolution_clock::now();
 	} else {
 		primary_id = -1;
 	}
@@ -211,13 +211,16 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 
 void LaptopFactory::SendHeartbeatThread() {
 	ServerStub stub;
+	struct MapOp new_log = {-2, -2, -2};
 
 	while(true){
-		if((std::chrono::high_resolution_clock::now() - start_time) == timeout) {
+		if((std::chrono::high_resolution_clock::now() - start_time) == timeout - std::chrono::microseconds(200)) {
 			int n = 0;
 			for(PeerServer peer: peer_vector) {
 				if(peer.is_up == 1) {
-					if(stub.SendIdent(3, n) == -1){
+					ReplicationRequest rprqst;
+					rprqst.SetRequest(-2, -2, -2, new_log);
+					if(stub.SendRepReq(rprqst, peer, n) == -1){
 						peer.is_up = 0;
 					}
 				}
@@ -225,6 +228,28 @@ void LaptopFactory::SendHeartbeatThread() {
 			}
 			n = 0;
 			start_time = std::chrono::high_resolution_clock::now();
+		}
+	}
+}
+
+void LaptopFactory::StartElectionThread() {
+	ServerStub stub;
+	while(true){
+		if((std::chrono::high_resolution_clock::now() - start_time) >= timeout) {
+			// term_number++;
+			// std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100));
+			// int n = 0;
+			// for(PeerServer peer: peer_vector) {
+			// 	if(peer.is_up == 1) {
+			// 		if(stub.Connect(peer, i) != 0){
+			// 			stub.SendIdent(term_number, n)
+			// 		};
+			// 	}
+			// 	n++;
+			// }
+
+			std::cout << "Leader Election started: " << factory_id << std::endl;
+			break;
 		}
 	}
 }

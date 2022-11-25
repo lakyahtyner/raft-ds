@@ -63,7 +63,11 @@ int main(int argc, char *argv[]) {
 		std::thread send_hb_thread(&LaptopFactory::SendHeartbeatThread,
 			&factory);
 		thread_vector.push_back(std::move(send_hb_thread));
-	} 
+	} else {
+		std::thread start_election_thread(&LaptopFactory::StartElectionThread,
+			&factory);
+		thread_vector.push_back(std::move(start_election_thread));
+	}
 	
 	if (!socket.Init(port)) {
 		std::cout << "Socket initialization failed" << std::endl;
