@@ -83,7 +83,7 @@ int ReplicationRequest::GetCommittedIndex() { return committed_index; }
 MapOp ReplicationRequest::GetUpdateMap() { return updt; }
 
 int ReplicationRequest::Size() {
-	return sizeof(factory_id) + sizeof(last_index) + sizeof(committed_index) + 
+	return sizeof(factory_id) + sizeof(last_index) + sizeof(committed_index) +
 	sizeof(updt.opcode) + sizeof(updt.arg1) + sizeof(updt.arg2);
 }
 

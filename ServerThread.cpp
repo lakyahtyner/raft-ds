@@ -40,7 +40,7 @@ CreateLaptop(Request rqst, int engineer_id) {
 	std::promise<LaptopInfo> prom;
 	std::future<LaptopInfo> fut = prom.get_future();
 
-	std::unique_ptr<AdminRequest> rqstpt = 
+	std::unique_ptr<AdminRequest> rqstpt =
 		std::unique_ptr<AdminRequest>(new AdminRequest);
 	rqstpt->laptop = laptop;
 	rqstpt->prom = std::move(prom);
@@ -76,7 +76,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 				break;
 			}
 			request_type = rqst.GetRequestType();
-			
+
 			switch (request_type) {
 				case 1:
 					laptop = CreateLaptop(rqst, engineer_id);
@@ -102,7 +102,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 			// 	break;
 			// }
 
-			if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
+			if((std::chrono::high_resolution_clock::now() - start_time) >= timeout) {
 				// start leader election
 			}
 
@@ -119,6 +119,8 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 
 				map_lock.lock();
 
+
+
 				if(customer_map.size() < 1){
 					customer_map.insert({smr_log[rprqst.GetCommittedIndex()].arg1, smr_log[rprqst.GetCommittedIndex()].arg2});
 				} else {
@@ -130,6 +132,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 
 				stub.SendRepResponse();
 			} else if (rprqst.GetFactoryId() == -2) {
+				std::cout << "Leader Alive \n";
 				start_time = std::chrono::high_resolution_clock::now();
 			}
 		}
@@ -142,7 +145,7 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 	ServerStub stub;
 
 	start_time = std::chrono::high_resolution_clock::now();
-	
+
 	stub.peer_sockets.resize(peer_vector.size());
 	factory_id = uid;
 
@@ -194,15 +197,15 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 			}
 			n++;
 		}
-		
+
 		map_lock.lock();
 		customer_map[rqstpt->laptop.GetCustomerId()] = rqstpt->laptop.GetOrderNumber();
 		map_cv.notify_all();
 		map_lock.unlock();
 
 		rqstpt->laptop.SetAdminId(id);
-		rqstpt->prom.set_value(rqstpt->laptop);	
-		
+		rqstpt->prom.set_value(rqstpt->laptop);
+
 		committed_index = last_index;
 		start_time = std::chrono::high_resolution_clock::now();
 
