@@ -14,9 +14,11 @@ LaptopInfo ClientStub::Order(Request rqst) {
 	rqst.Marshal(buffer);
 	size = rqst.Size();
 	
-	char ident_buffer[32];
-	MarshalIdent(ident_buffer, 1);
-	socket.Send(ident_buffer, sizeof(int), 0);
+	if (rqst.GetOrderNumber() == 0){
+		char ident_buffer[32];
+		MarshalIdent(ident_buffer, 1);
+		socket.Send(ident_buffer, sizeof(int), 0);
+	}
 
 	if (socket.Send(buffer, size, 0)) {
 		size = info.Size();

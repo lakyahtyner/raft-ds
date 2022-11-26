@@ -24,9 +24,9 @@ ThreadBody(std::string ip, int port, int id, int requests, int type) {
 			SendReadRequest(customer_id, num_requests, request_type);
 			break;
 		default:
+			// std::cout << "Undefined request type in client: "
+			// 	<< request_type << std::endl;
 			break;
-			//std::cout << "Undefined request type in client: "
-			//	<< request_type << std::endl;
 	}
 }
 
@@ -39,15 +39,15 @@ void ClientThreadClass::SendOrderRequest(int customer_id, int num_requests) {
 		Request request;
 		LaptopInfo laptop;
 		request.SetRequest(customer_id, i, 1);
-
+		
 		timer.Start();
 		laptop = stub.Order(request);
 		timer.EndAndMerge();
 
 		if (!laptop.IsValid()) {
-			//std::cout << "Invalid laptop " << customer_id << std::endl;
+			// std::cout << "Invalid laptop " << customer_id << std::endl;
 			break;	
-		} 
+		}
 	}
 }
 

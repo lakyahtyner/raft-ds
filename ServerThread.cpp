@@ -33,6 +33,7 @@ GetCustomerRecord(Request rqst) {
 LaptopInfo LaptopFactory::
 CreateLaptop(Request rqst, int engineer_id) {
 	LaptopInfo laptop;
+
 	laptop.CopyOrder(rqst);
 	laptop.SetEngineerId(engineer_id);
 
@@ -69,8 +70,8 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 	ident = stub.ReceiveIdent();
 
 	if(ident == 1){
-		rqst = stub.ReceiveRequest();
 		while (true) {
+			rqst = stub.ReceiveRequest();
 			if (!rqst.IsValid()) {
 				break;
 			}
@@ -86,9 +87,9 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					stub.ReturnRecord(crcd);
 					break;
 				default:
+					// std::cout << "Undefined request type in server: " 
+					// << request_type << std::endl;
 					break;
-					//std::cout << "Undefined request type in server: "
-					//	<< request_type << std::endl;
 			}
 		}
 	} else if(ident == 2) {
