@@ -10,17 +10,14 @@
 
 class ClientThreadClass {
 	int customer_id;
-	int num_requests;
+	int num_orders;
 	int request_type;
 	ClientStub stub;
 
 	ClientTimer timer;
-	void SendOrderRequest(int customer_id, int num_requests);
-	void SendReadRequest(int customer_id, int num_requests, int request_type);
-
 public:
 	ClientThreadClass();
-	void ThreadBody(std::string ip, int port, int id, int renum_requests, int type);
+	void ThreadBody(std::string ip, int port, int id, int orders, int type);
 
 	ClientTimer GetTimer();
 };

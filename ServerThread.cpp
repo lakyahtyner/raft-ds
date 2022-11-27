@@ -1,52 +1,43 @@
 #include <iostream>
 #include <memory>
-#include <condition_variable>
-#include <mutex>
 
 #include "ServerThread.h"
 #include "ServerStub.h"
-#include "ServerSocket.h"
 
 std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(4000000);
 
-CustomerRecord LaptopFactory::
-GetCustomerRecord(Request rqst) {
-	CustomerRecord crcd;
 
+CustomerRecord LaptopFactory::AccessCustomerMap(CustomerRequest order) {
+	CustomerRecord record;
+	int id = order.GetCustomerId();
 	map_lock.lock();
-	int inMap = customer_map.count(rqst.GetCustomerId()) > 0;
-	int last_order = -1;
-	int customer_id = -1;
-
-	if (inMap){
-		last_order = customer_map[rqst.GetCustomerId()];
-		customer_id = rqst.GetCustomerId();
+	if(customer_map.count(id)){
+		record.SetRecord(id,customer_map[id]);
 	}
-
-	map_cv.notify_all();
+	else{
+		record.SetRecord(-1,-1);
+	}
+	// map_cv.notify_one();
 	map_lock.unlock();
 
-	crcd.SetRecord(customer_id, last_order);
-	return crcd;
+	return record;
 }
 
 LaptopInfo LaptopFactory::
-CreateLaptop(Request rqst, int engineer_id) {
+CreateLaptop(CustomerRequest order, int engineer_id) {
 	LaptopInfo laptop;
-
-	laptop.CopyOrder(rqst);
+	laptop.CopyOrder(order);
 	laptop.SetEngineerId(engineer_id);
 
 	std::promise<LaptopInfo> prom;
 	std::future<LaptopInfo> fut = prom.get_future();
 
-	std::unique_ptr<AdminRequest> rqstpt =
-		std::unique_ptr<AdminRequest>(new AdminRequest);
-	rqstpt->laptop = laptop;
-	rqstpt->prom = std::move(prom);
+	std::unique_ptr<ExpertRequest> req = std::unique_ptr<ExpertRequest>(new ExpertRequest);
+	req->laptop = laptop;
+	req->prom = std::move(prom);
 
 	erq_lock.lock();
-	erq.push(std::move(rqstpt));
+	erq.push(std::move(req));
 	erq_cv.notify_one();
 	erq_lock.unlock();
 
@@ -58,105 +49,100 @@ void LaptopFactory::
 EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 	int engineer_id = id;
 	int request_type;
-	Request rqst;
+	CustomerRequest order;
+	int IFA_id;
 	LaptopInfo laptop;
-	CustomerRecord crcd;
-	int ident;
-	ReplicationRequest rprqst;
-
+	CustomerRecord record;
 	ServerStub stub;
+	ReplicationRecord rep_record;
+	MapOp smr_obj;
 
 	stub.Init(std::move(socket));
-	ident = stub.ReceiveIdent();
+	IFA_id = stub.ReceiveId();
 
-	if(ident == 1){
-		while (true) {
-			rqst = stub.ReceiveRequest();
-			if (!rqst.IsValid()) {
+	// printf("Primary id %d\n", IFA_id);
+
+	while (true) {
+
+		if(IFA_id>=0){
+					// printf("Inside Replication Function\n");
+					rep_record = stub.ReceiveReplicationRequest();
+
+
+					if(rep_record.GetFactoryId() == -1){
+						peer_isalive[IFA_id] = false;
+						primary_id = -1;
+						printf("Leader went down, Closing Follower thread \n");
+						break;
+					}
+
+					//HeartBeat check
+					else if(rep_record.GetFactoryId() == -10){
+						printf("Recieved HeartBeat\n");
+						start_time = std::chrono::high_resolution_clock::now();
+						stub.SendReplicationAck();
+						continue;
+					}
+
+					map_lock.lock();
+
+					primary_id = rep_record.GetFactoryId();
+					last_index = rep_record.GetLastIndex();
+					rep_record.GetMapObj(smr_obj);
+					smr_log.push_back(smr_obj);
+
+
+					if(rep_record.GetCommitedIndex()>=0){
+						committed_index = rep_record.GetCommitedIndex();
+						if(customer_map.count(smr_log[committed_index].arg1)){
+							customer_map[smr_log[committed_index].arg1] = smr_log[committed_index].arg2;
+						}
+
+						else{
+							customer_map.insert(std::pair<int, int>(smr_log[committed_index].arg1, smr_log[committed_index].arg2));
+						}
+
+					}
+					// map_cv.notify_one();
+					map_lock.unlock();
+
+					stub.SendReplicationAck();
+
+		}
+
+		else{
+			order = stub.ReceiveRequest();
+			if (!order.IsValid()) {
 				break;
 			}
-			request_type = rqst.GetRequestType();
-
-			switch (request_type) {
+			request_type = order.GetRequestType();
+			switch (request_type) { // harsh: build request_type functions.
 				case 1:
-					laptop = CreateLaptop(rqst, engineer_id);
-					stub.ShipLaptop(laptop);
+					laptop = CreateLaptop(order, engineer_id);
+					stub.SendLaptop(laptop);
 					break;
 				case 2:
-					crcd = GetCustomerRecord(rqst);
-					stub.ReturnRecord(crcd);
+					record = AccessCustomerMap(order);
+					stub.ReturnRecord(record);
 					break;
 				default:
-					// std::cout << "Undefined request type in server: " 
-					// << request_type << std::endl;
-					break;
+					std::cout << "Undefined request type: "<< request_type << std::endl;
+
 			}
 		}
-	} else if(ident == 2) {
-		while(true) {
-			start_time = std::chrono::high_resolution_clock::now();
-			rprqst = stub.ReceiveRepReq();
-
-			// if(!rprqst.IsValid()) {
-			// 	//primary_id = -1;
-			// 	break;
-			// }
-
-			if((std::chrono::high_resolution_clock::now() - start_time) >= timeout) {
-				// start leader election
-			}
-
-			if(rprqst.IsValid()) {
-				primary_id = rprqst.GetFactoryId();
-
-				struct MapOp new_log = {rprqst.GetUpdateMap().opcode, rprqst.GetUpdateMap().arg1, rprqst.GetUpdateMap().arg2};
-
-				smr_lock.lock();
-				smr_log.push_back(new_log);
-				smr_cv.notify_all();
-				last_index = smr_log.size() - 1;
-				smr_lock.unlock();
-
-				map_lock.lock();
-
-
-
-				if(customer_map.size() < 1){
-					customer_map.insert({smr_log[rprqst.GetCommittedIndex()].arg1, smr_log[rprqst.GetCommittedIndex()].arg2});
-				} else {
-					customer_map[smr_log[rprqst.GetCommittedIndex()].arg1] = smr_log[rprqst.GetCommittedIndex()].arg2;
-				}
-
-				map_cv.notify_all();
-				map_lock.unlock();
-
-				stub.SendRepResponse();
-			} else if (rprqst.GetFactoryId() == -2) {
-				std::cout << "Leader Alive \n";
-				start_time = std::chrono::high_resolution_clock::now();
-			}
-		}
-	} else {
-		primary_id = -1;
 	}
+
+	// printf("Exiting while loop\n");
 }
 
-void LaptopFactory::ProductionAdminThread(int id, int uid) {
-	ServerStub stub;
-
-	start_time = std::chrono::high_resolution_clock::now();
-
-	stub.peer_sockets.resize(peer_vector.size());
-	factory_id = uid;
-
+void LaptopFactory::AdminThread(int id) {
 	std::unique_lock<std::mutex> ul(erq_lock, std::defer_lock);
-	int i = 0;
-	for(PeerServer peer: peer_vector) {
-		if(stub.Connect(peer, i) == 0){
-			peer_vector[i].is_up = 0;
-		};
-		i++;
-	}
+	MapOp smr_obj;
+	ServerStub stub;
+	bool connection_flag = false;
+	// stub.peer_sockets.resize(n_peers);
+	ReplicationRecord rep_record;
+
 
 	while (true) {
 		ul.lock();
@@ -165,87 +151,184 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 			erq_cv.wait(ul, [this]{ return !erq.empty(); });
 		}
 
-		auto rqstpt = std::move(erq.front());
+		auto req = std::move(erq.front());
 		erq.pop();
 
-		ul.unlock();
-		//std::this_thread::sleep_for(std::chrono::microseconds(100));
-		struct MapOp new_log = {1, rqstpt->laptop.GetCustomerId(), rqstpt->laptop.GetOrderNumber()};
-
-		smr_lock.lock();
-		smr_log.push_back(new_log);
-		smr_cv.notify_all();
-		last_index = smr_log.size() - 1;
-		smr_lock.unlock();
-
-		if(primary_id != factory_id){
-			customer_map[smr_log[smr_log.size() -2].arg1] = smr_log[smr_log.size() - 2].arg2;
-			committed_index = smr_log.size() - 2;
+		if(primary_id != unique_id){
+			primary_id = unique_id;
 		}
+		if(!connection_flag){
 
-		ReplicationRequest rprqst;
-		rprqst.SetRequest(factory_id, last_index, committed_index, new_log);
-		int n = 0;
-		for(PeerServer peer: peer_vector) {
-			if(peer.is_up == 1) {
-				if(stub.SendIdent(2, n) == -1){
-					peer.is_up = 0;
-				} else {
-					stub.SendRepReq(rprqst, peer, n);
-					stub.ReceiveIdleResp(peer, n);
+			for (auto const& peer_info : peer_ips)
+			{
+				int peer_id = peer_info.first;
+				std::string peer_ip = peer_info.second;
+				int port = peer_ports[peer_id];
+				if(stub.peer_sockets.count(peer_id) == 0){
+					ServerSocket temp_socket;
+					stub.peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
 				}
+				//Add peer alive code here
+				if(peer_isalive[peer_id]){
+					if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
+						std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
+						peer_isalive[peer_id]= false;
+					}
+					else{
+						stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
+					}
+
+				}
+
 			}
-			n++;
+			connection_flag = true;
 		}
+
+		ul.unlock();
+
+		log_lock.lock();
+
+		smr_obj.opcode = 1;
+		smr_obj.arg1 = req->laptop.GetCustomerId();
+		smr_obj.arg2 = req->laptop.GetOrderNumber();
+
+		smr_log.push_back(smr_obj);
+		last_index++;
+		rep_record.SetRecord(unique_id, committed_index, last_index, smr_obj);
+		// rep_record.Print();
+		// int total_acks = 0;
+
+		for (auto const& peer_info : peer_isalive){
+			int peer_id = peer_info.first;
+			bool peer_alive = peer_info.second;
+			// printf("peer_id %d \n", peer_id);
+			if(peer_alive){
+				if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
+					printf("Backup Server Down: %d\n", peer_id);
+					peer_isalive[peer_id] = false;
+
+				 }
+				 else{
+					 // printf("peer_id_alive %d\n",peer_id);
+					 stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id]);
+	 				 // printf("Received Ack from peer %d\n",peer_id);
+				 }
+
+			}
+		}
+
+		log_lock.unlock();
 
 		map_lock.lock();
-		customer_map[rqstpt->laptop.GetCustomerId()] = rqstpt->laptop.GetOrderNumber();
-		map_cv.notify_all();
+
+			if(customer_map.count(smr_log[last_index].arg1)){
+				customer_map[smr_log[last_index].arg1] = smr_log[last_index].arg2;
+			}
+
+			else{
+				customer_map.insert(std::pair<int, int>(smr_log[last_index].arg1, smr_log[last_index].arg2));
+			}
+
+			committed_index = last_index;
+
+
 		map_lock.unlock();
 
-		rqstpt->laptop.SetAdminId(id);
-		rqstpt->prom.set_value(rqstpt->laptop);
-
-		committed_index = last_index;
-		start_time = std::chrono::high_resolution_clock::now();
-
-		primary_id = factory_id;
+		// std::this_thread::sleep_for(std::chrono::microseconds(100));
+		req->laptop.SetAdminId(id);
+		req->prom.set_value(req->laptop);
 	}
 }
 
-void LaptopFactory::SendHeartbeatThread() {
+
+void LaptopFactory::HeartbeatThread() {
+	std::unique_lock<std::mutex> ul(erq_lock, std::defer_lock);
+	MapOp smr_obj;
+	bool connection_flag = false;
 	ServerStub stub;
-	struct MapOp new_log = {-2, -2, -2};
+	ReplicationRecord rep_record;
+
 	std::chrono::time_point<std::chrono::high_resolution_clock> curr;
 	std::chrono::duration<double> elapsed_time, adjusted_timeout;
-	adjusted_timeout = timeout - std::chrono::microseconds(200);
+	adjusted_timeout = timeout - std::chrono::microseconds(5000);
 
-	while(true){
+	while (true) {
+
 		curr = std::chrono::high_resolution_clock::now();
 		elapsed_time = curr - start_time;
 
-		if(elapsed_time > adjusted_timeout) {
-			int n = 0;
-			for(PeerServer peer: peer_vector) {
-				if(peer.is_up == 1) {
-					ReplicationRequest rprqst;
-					rprqst.SetRequest(-2, -2, -2, new_log);
-					if(stub.SendRepReq(rprqst, peer, n) == -1){
-						peer.is_up = 0;
-					}
+		ul.lock();
+		if(!connection_flag){
+
+			for (auto const& peer_info : peer_ips)
+			{
+				int peer_id = peer_info.first;
+				std::string peer_ip = peer_info.second;
+				int port = peer_ports[peer_id];
+				if(stub.peer_sockets.count(peer_id) == 0){
+					ServerSocket temp_socket;
+					stub.peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
 				}
-				n++;
+				//Add peer alive code here
+				if(peer_isalive[peer_id]){
+					if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
+						std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
+						peer_isalive[peer_id]= false;
+					}
+					else{
+						stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
+					}
+
+				}
+
 			}
-			n = 0;
-			start_time = std::chrono::high_resolution_clock::now();
+			connection_flag = true;
 		}
+		ul.unlock();
+
+		smr_obj.opcode = -10;
+		smr_obj.arg1 = -10;
+		smr_obj.arg2 = -10;
+
+		rep_record.SetRecord(-10, -10, -10, smr_obj);
+
+		timer_lock.lock();
+
+		if(elapsed_time > adjusted_timeout){
+			for (auto const& peer_info : peer_isalive){
+				int peer_id = peer_info.first;
+				bool peer_alive = peer_info.second;
+
+
+						if(peer_alive){
+								if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
+									printf("Follower %d Down\n", peer_id);
+									peer_isalive[peer_id] = false;
+								 }
+
+								if(!stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id])){
+									 printf("Follower %d Down\n", peer_id);
+	 								 peer_isalive[peer_id] = false;
+								}
+						}
+				}
+				printf("Sent HeartBeat\n");
+				start_time = std::chrono::high_resolution_clock::now();
+		}
+
+		timer_lock.unlock();
+
 	}
+
 }
 
-void LaptopFactory::StartElectionThread() {
+void LaptopFactory::ElectionThread() {
 	ServerStub stub;
+	std::this_thread::sleep_for(std::chrono::microseconds(10000000));
 	while(true){
-		if((std::chrono::high_resolution_clock::now() - start_time) >= timeout) {
+
+		timer_lock.lock();
+		if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
 			// term_number++;
 			// std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100));
 			// int n = 0;
@@ -257,13 +340,10 @@ void LaptopFactory::StartElectionThread() {
 			// 	}
 			// 	n++;
 			// }
-
-			std::cout << "Leader Election started: " << factory_id << std::endl;
+			// std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(start_time).count()<<std::endl;
+			std::cout << "Leader Election started: " << unique_id << std::endl;
 			break;
 		}
+		timer_lock.unlock();
 	}
-}
-
-void LaptopFactory::AddPeer(PeerServer new_peer) {
-	peer_vector.push_back(new_peer);
 }

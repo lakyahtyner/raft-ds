@@ -6,69 +6,69 @@
 ClientThreadClass::ClientThreadClass() {}
 
 void ClientThreadClass::
-ThreadBody(std::string ip, int port, int id, int requests, int type) {
+ThreadBody(std::string ip, int port, int id, int orders, int type) {
 	customer_id = id;
-	num_requests = requests;
+	num_orders = orders;
 	request_type = type;
 	if (!stub.Init(ip, port)) {
-		//std::cout << "Thread " << customer_id << " failed to connect" << std::endl;
+		std::cout << "Thread " << customer_id << " failed to connect" << std::endl;
 		return;
 	}
 
-	switch (request_type) {
-		case 1:
-			SendOrderRequest(customer_id, num_requests);
-			break;
-		case 2:
-		case 3:
-			SendReadRequest(customer_id, num_requests, request_type);
-			break;
-		default:
-			// std::cout << "Undefined request type in client: "
-			// 	<< request_type << std::endl;
-			break;
-	}
+	stub.SendId(-1);
+
+	if (request_type == 1) { // harsh: build request_type functions.
+			for (int i = 0; i < num_orders; i++) {
+				CustomerRequest order;
+				LaptopInfo laptop;
+				order.SetOrder(customer_id, i, request_type);
+
+				timer.Start();
+				laptop = stub.OrderLaptop(order);
+				timer.EndAndMerge();
+
+				if (!laptop.IsValid()) {
+					// std::cout << "Invalid laptop " << customer_id << std::endl;
+					break;
+				}
+			}
+		}
+		else if(request_type == 2){
+
+			CustomerRequest order;
+			CustomerRecord record;
+			order.SetOrder(customer_id, -1, request_type);
+
+			timer.Start();
+			record = stub.ReadRecord(order);
+			timer.EndAndMerge();
+			if (record.IsValid()){
+				record.Print();
+			}
+		}
+
+		else if(request_type == 3){
+			for (int i = 0; i < num_orders; i++) {
+				CustomerRequest order;
+				CustomerRecord record;
+				order.SetOrder(i, -1, 2);
+
+				timer.Start();
+				record = stub.ReadRecord(order);
+				timer.EndAndMerge();
+
+				if (record.IsValid()){
+					record.Print();
+				}
+			}
+		}
+
+
+		else{
+			std::cout << "Undefined request type: "<< request_type << std::endl;
+		}
 }
 
 ClientTimer ClientThreadClass::GetTimer() {
-	return timer;	
+	return timer;
 }
-
-void ClientThreadClass::SendOrderRequest(int customer_id, int num_requests) {
-	for (int i = 0; i < num_requests; i++) {
-		Request request;
-		LaptopInfo laptop;
-		request.SetRequest(customer_id, i, 1);
-		
-		timer.Start();
-		laptop = stub.Order(request);
-		timer.EndAndMerge();
-
-		if (!laptop.IsValid()) {
-			// std::cout << "Invalid laptop " << customer_id << std::endl;
-			break;	
-		}
-	}
-}
-
-void ClientThreadClass::SendReadRequest(int customer_id, int num_requests, int request_type) {
-	for (int i = 0; i < num_requests; i++) {
-		Request request;
-		CustomerRecord crcd;
-
-		if(request_type == 2) {
-			request.SetRequest(customer_id, -1, 2);
-		} else {
-			request.SetRequest(i, -1, 2);
-		}
-
-		timer.Start();
-		crcd = stub.ReadRecord(request);
-		timer.EndAndMerge();
-
-		if (crcd.IsValid()) {
-			crcd.Print();
-		}
-	}
-}
-

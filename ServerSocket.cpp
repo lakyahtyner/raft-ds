@@ -23,7 +23,7 @@ bool ServerSocket::Init(int port) {
 	struct sockaddr_in addr;
 	fd_ = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd_ < 0) {
-		//perror("ERROR: failed to create a socket");
+		perror("ERROR: failed to create a socket");
 		return false;
 	}
 
@@ -33,7 +33,7 @@ bool ServerSocket::Init(int port) {
 	addr.sin_port = htons(port);
 
 	if ((bind(fd_, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
-		//perror("ERROR: failed to bind");
+		perror("ERROR: failed to bind");
 		return false;
 	}
 
@@ -48,25 +48,22 @@ std::unique_ptr<ServerSocket> ServerSocket::Accept() {
 	struct sockaddr_in addr;
 	unsigned int addr_size = sizeof(addr);
 	accepted_fd = accept(fd_, (struct sockaddr *) &addr, &addr_size);
-	
 	if (accepted_fd < 0) {
-		//perror("ERROR: failed to accept connection");
+		perror("ERROR: failed to accept connection");
 		return nullptr;
 	}
 
 	return std::unique_ptr<ServerSocket>(new ServerSocket(accepted_fd, IsNagleOn()));
 }
 
-int ServerSocket::Connect(std::string ip, int port) {
+int ServerSocket::Init(std::string ip, int port) {
 	if (is_initialized_) {
-		return -1;
+		return 0;
 	}
-
 	struct sockaddr_in addr;
-
 	fd_ = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd_ < 0) {
-		//perror("ERROR: failed to create a socket");
+		perror("ERROR: failed to create a socket");
 		return 0;
 	}
 
@@ -76,10 +73,9 @@ int ServerSocket::Connect(std::string ip, int port) {
 	addr.sin_port = htons(port);
 
 	if ((connect(fd_, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
-		//perror("ERROR: failed to connect");
+		perror("ERROR: failed to connect");
 		return 0;
 	}
-
 	is_initialized_ = true;
 	return 1;
 }

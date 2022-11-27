@@ -3,29 +3,58 @@
 
 #include <string>
 
-struct MapOp {
+struct MapOp{
 	int opcode;
 	int arg1;
 	int arg2;
 };
 
-class Request {
+class ReplicationRecord{
 private:
-	int customer_id;
-	int order_number;
-	int request_type;
+	int factory_id;
+	int committed_index;
+	int last_index;
+	int opcode;
+	int arg1;
+	int arg2;
 
 public:
-	Request();
-	void operator = (const Request &order) {
-		customer_id = order.customer_id;
-		order_number = order.order_number;
-		request_type = order.request_type;
+	ReplicationRecord();
+	void operator = (const ReplicationRecord &record) {
+		factory_id = record.factory_id;
+		committed_index = record.committed_index;
+		last_index = record.last_index;
+		opcode = record.opcode;
+		arg1 = record.arg1;
+		arg2 = record.arg2;
 	}
-	void SetRequest(int cid, int order_num, int type);
+	void SetRecord(int id, int cidx, int lidx, MapOp sobj);
+	void Marshal(char* buffer);
+	void Unmarshal(char* buffer);
+	int GetFactoryId();
+	int GetCommitedIndex();
+	int GetLastIndex();
+	void GetMapObj(MapOp &smr_obj);
+	int Size();
+	void Print();
+};
+
+
+
+
+class CustomerRecord{
+private:
+	int customer_id;
+	int last_order;
+public:
+	CustomerRecord();
+	void operator = (const CustomerRecord &record) {
+		customer_id = record.customer_id;
+		last_order = record.last_order;
+	}
+	void SetRecord(int cid, int order_num);
 	int GetCustomerId();
-	int GetOrderNumber();
-	int GetRequestType();
+	int GetLastOrder();
 
 	int Size();
 
@@ -35,28 +64,26 @@ public:
 	bool IsValid();
 
 	void Print();
+
 };
 
-class ReplicationRequest {
+class CustomerRequest{
 private:
-	int factory_id;
-	int last_index;
-	int committed_index;
-	MapOp updt;
+	int customer_id;
+	int order_number;
+	int request_type; //changed to request_type
 
 public:
-	ReplicationRequest();
-	void operator = (const ReplicationRequest &rprqst) {
-		factory_id = rprqst.factory_id;
-		last_index = rprqst.last_index;
-		committed_index	 = rprqst.committed_index;
-		updt = rprqst.updt;
+	CustomerRequest();
+	void operator = (const CustomerRequest &order) {
+		customer_id = order.customer_id;
+		order_number = order.order_number;
+		request_type = order.request_type;
 	}
-	void SetRequest(int fid, int lidx, int cidx, MapOp updmp);
-	int GetFactoryId();
-	int GetLastIndex();
-	int GetCommittedIndex();
-	MapOp GetUpdateMap();
+	void SetOrder(int cid, int order_num, int type);
+	int GetCustomerId();
+	int GetOrderNumber();
+	int GetRequestType();
 
 	int Size();
 
@@ -72,9 +99,9 @@ class LaptopInfo {
 private:
 	int customer_id;
 	int order_number;
-	int request_type;
+	int request_type; //change to request
 	int engineer_id;
-	int admin_id;
+	int admin_id; //change to admin_id.
 
 public:
 	LaptopInfo();
@@ -85,8 +112,8 @@ public:
 		engineer_id = info.engineer_id;
 		admin_id = info.admin_id;
 	}
-	void SetInfo(int cid, int order_num, int type, int engid, int admid);
-	void CopyOrder(Request order);
+	void SetInfo(int cid, int order_num, int type, int engid, int expid);
+	void CopyOrder(CustomerRequest order);
 	void SetEngineerId(int id);
 	void SetAdminId(int id);
 
@@ -106,32 +133,5 @@ public:
 	void Print();
 };
 
-class CustomerRecord {
-private:
-	int customer_id;
-	int last_order;
-
-public:
-	CustomerRecord();
-	void operator = (const CustomerRecord &record) {
-		customer_id = record.customer_id;
-		last_order = record.last_order;
-	}
-	void SetRecord(int cid, int lst_odr);
-	int GetCustomerId();
-	int GetLastOrder();
-
-	int Size();
-
-	void Marshal(char *buffer);
-	void Unmarshal(char *buffer);
-
-	bool IsValid();
-
-	void Print();
-};
-
-void MarshalIdent(char *buffer, int ident);
-int UnmarshalIdent(char *buffer);
 
 #endif // #ifndef __MESSAGES_H__

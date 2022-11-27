@@ -36,7 +36,7 @@ int Socket::Send(char *buffer, int size, int flags) {
 				continue;
 			}
 			*/
-			//perror("ERROR: failed to send");
+			// perror("ERROR: failed to send");
 			Close();
 			return 0;
 		}
@@ -77,7 +77,7 @@ int Socket::NagleOn(bool on_off) {
 	int result = setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY,
 				(void *) &nagle_, sizeof(int));
 	if (result < 0) {
-		//perror("ERROR: setsockopt failed");
+		perror("ERROR: setsockopt failed");
 		return 0;
 	}
 	return 1;
@@ -93,9 +93,3 @@ void Socket::Close() {
 	//perror("Socket closed");
 	is_initialized_ = false;
 }
-
-
-
-
-
-

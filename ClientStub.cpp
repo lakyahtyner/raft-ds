@@ -1,51 +1,47 @@
 #include "ClientStub.h"
-#include "Messages.h"
+#include <cstring>
+#include <arpa/inet.h>
 
 ClientStub::ClientStub() {}
 
 int ClientStub::Init(std::string ip, int port) {
-	return socket.Init(ip, port);	
+	return socket.Init(ip, port);
 }
 
-LaptopInfo ClientStub::Order(Request rqst) {
+int ClientStub::SendId(int unique_id){
+	char buffer[32];
+	unique_id = htonl(unique_id);
+	memcpy(buffer, &unique_id, sizeof(unique_id));
+	return socket.Send(buffer, sizeof(unique_id), 0);
+}
+
+LaptopInfo ClientStub::OrderLaptop(CustomerRequest order) {
 	LaptopInfo info;
 	char buffer[32];
 	int size;
-	rqst.Marshal(buffer);
-	size = rqst.Size();
-	
-	if (rqst.GetOrderNumber() == 0){
-		char ident_buffer[32];
-		MarshalIdent(ident_buffer, 1);
-		socket.Send(ident_buffer, sizeof(int), 0);
-	}
-
+	order.Marshal(buffer);
+	size = order.Size();
 	if (socket.Send(buffer, size, 0)) {
 		size = info.Size();
 		if (socket.Recv(buffer, size, 0)) {
 			info.Unmarshal(buffer);
-		} 
+		}
 	}
-
 	return info;
 }
 
-CustomerRecord ClientStub::ReadRecord(Request rqst) {
-	CustomerRecord crcd;
+CustomerRecord ClientStub::ReadRecord(CustomerRequest order){
+	CustomerRecord record;
 	char buffer[32];
 	int size;
-	rqst.Marshal(buffer);
-	size = rqst.Size();
-
-	char ident_buffer[32];
-	MarshalIdent(ident_buffer, 1);
-	socket.Send(ident_buffer, sizeof(int), 0);
+	order.Marshal(buffer);
+	size = order.Size();
 	if (socket.Send(buffer, size, 0)) {
-		size = crcd.Size();
+		size = record.Size();
 		if (socket.Recv(buffer, size, 0)) {
-			crcd.Unmarshal(buffer);
+			record.Unmarshal(buffer);
 		}
 	}
-	return crcd;
-}
+	return record;
 
+}

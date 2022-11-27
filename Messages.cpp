@@ -4,28 +4,166 @@
 #include <arpa/inet.h>
 #include "Messages.h"
 
+ReplicationRecord::ReplicationRecord(){
+	factory_id = -1;
+	committed_index = -1;
+	last_index = -1;
+}
 
-Request::Request() {
+void ReplicationRecord::SetRecord(int id, int cidx, int lidx, MapOp sobj){
+	factory_id = id;
+	committed_index = cidx;
+	last_index = lidx;
+	opcode = sobj.opcode;
+	arg1 = sobj.arg1;
+	arg2 = sobj.arg2;
+}
+
+int ReplicationRecord::GetFactoryId(){return factory_id;}
+int ReplicationRecord::GetCommitedIndex(){return committed_index;}
+int ReplicationRecord::GetLastIndex(){return last_index;}
+void ReplicationRecord::GetMapObj(MapOp &smr_obj){
+	smr_obj.opcode = opcode;
+	smr_obj.arg1 = arg1;
+	smr_obj.arg2 = arg2;
+}
+
+int ReplicationRecord::Size(){
+	return sizeof(factory_id)+sizeof(committed_index)+sizeof(last_index)+sizeof(opcode)+sizeof(arg1)+sizeof(arg2);
+}
+
+void ReplicationRecord::Marshal(char* buffer){
+
+	int net_factory_id = htonl(factory_id);
+	int net_commited_index = htonl(committed_index);
+	int net_last_index = htonl(last_index);
+	int net_opcode = htonl(opcode);
+	int net_arg1 = htonl(arg1);
+	int net_arg2 = htonl(arg2);
+	int offset = 0;
+	memcpy(buffer + offset, &net_factory_id, sizeof(net_factory_id));
+	offset += sizeof(net_factory_id);
+	memcpy(buffer + offset, &net_commited_index, sizeof(net_commited_index));
+	offset += sizeof(net_commited_index);
+	memcpy(buffer + offset, &net_last_index, sizeof(net_last_index));
+	offset += sizeof(net_last_index);
+	memcpy(buffer + offset, &net_opcode, sizeof(net_opcode));
+	offset += sizeof(net_opcode);
+	memcpy(buffer + offset, &net_arg1, sizeof(net_arg1));
+	offset += sizeof(net_arg1);
+	memcpy(buffer + offset, &net_arg2, sizeof(net_arg2));
+	offset += sizeof(net_arg2);
+
+}
+
+void ReplicationRecord::Unmarshal(char* buffer){
+	int net_factory_id;
+	int net_commited_index;
+	int net_last_index;
+	int net_opcode;
+	int net_arg1;
+	int net_arg2;
+	int offset = 0;
+
+	memcpy(&net_factory_id, buffer + offset, sizeof(net_factory_id));
+	offset += sizeof(net_factory_id);
+	memcpy(&net_commited_index, buffer + offset, sizeof(net_commited_index));
+	offset += sizeof(net_commited_index);
+	memcpy(&net_last_index,buffer + offset, sizeof(net_last_index));
+	offset += sizeof(net_last_index);
+	memcpy(&net_opcode, buffer + offset, sizeof(net_opcode));
+	offset += sizeof(net_opcode);
+	memcpy(&net_arg1, buffer + offset, sizeof(net_arg1));
+	offset += sizeof(net_arg1);
+	memcpy(&net_arg2, buffer + offset, sizeof(net_arg2));
+	offset += sizeof(net_arg2);
+
+	factory_id = ntohl(net_factory_id);
+	committed_index = ntohl(net_commited_index);
+	last_index = ntohl(net_last_index);
+	opcode = ntohl(net_opcode);
+	arg1 = ntohl(net_arg1);
+	arg2 = ntohl(net_arg2);
+}
+
+void ReplicationRecord::Print(){
+	printf("%d, %d, %d, %d, %d, %d\n",factory_id, committed_index, last_index, opcode, arg1, arg2);
+}
+
+//---------------------------------------------------------
+
+CustomerRecord::CustomerRecord(){
+	customer_id = -1;
+	last_order = -1;
+}
+
+void CustomerRecord::SetRecord(int cid, int order_num){
+	customer_id = cid;
+	last_order = order_num;
+}
+
+int CustomerRecord::GetCustomerId() { return customer_id; }
+int CustomerRecord::GetLastOrder() { return last_order; }
+
+int CustomerRecord::Size() {
+	return sizeof(customer_id) + sizeof(last_order);
+}
+
+void CustomerRecord::Marshal(char *buffer) {
+	int net_customer_id = htonl(customer_id);
+	int net_last_order = htonl(last_order);
+	int offset = 0;
+	memcpy(buffer + offset, &net_customer_id, sizeof(net_customer_id));
+	offset += sizeof(net_customer_id);
+	memcpy(buffer + offset, &net_last_order, sizeof(net_last_order));
+}
+
+void CustomerRecord::Unmarshal(char *buffer) {
+	int net_customer_id;
+	int net_last_order;
+	int offset = 0;
+	memcpy(&net_customer_id, buffer + offset, sizeof(net_customer_id));
+	offset += sizeof(net_customer_id);
+	memcpy(&net_last_order, buffer + offset, sizeof(net_last_order));
+
+	customer_id = ntohl(net_customer_id);
+	last_order = ntohl(net_last_order);
+}
+
+bool CustomerRecord::IsValid() {
+	return (customer_id != -1);
+}
+
+void CustomerRecord::Print() {
+	std::cout<< customer_id<<"\t"<<last_order<<std::endl;
+	// std::cout << "id " << customer_id << " ";
+	// std::cout << "last " << last_order << "\n";
+}
+
+
+//-------------------------------------------
+
+CustomerRequest::CustomerRequest() {
 	customer_id = -1;
 	order_number = -1;
 	request_type = -1;
 }
 
-void Request::SetRequest(int id, int number, int type) {
-	customer_id = id;
+void CustomerRequest::SetOrder(int cid, int number, int type) {
+	customer_id = cid;
 	order_number = number;
 	request_type = type;
 }
 
-int Request::GetCustomerId() { return customer_id; }
-int Request::GetOrderNumber() { return order_number; }
-int Request::GetRequestType() { return request_type; }
+int CustomerRequest::GetCustomerId() { return customer_id; }
+int CustomerRequest::GetOrderNumber() { return order_number; }
+int CustomerRequest::GetRequestType() { return request_type; }
 
-int Request::Size() {
+int CustomerRequest::Size() {
 	return sizeof(customer_id) + sizeof(order_number) + sizeof(request_type);
 }
 
-void Request::Marshal(char *buffer) {
+void CustomerRequest::Marshal(char *buffer) {
 	int net_customer_id = htonl(customer_id);
 	int net_order_number = htonl(order_number);
 	int net_request_type = htonl(request_type);
@@ -37,7 +175,7 @@ void Request::Marshal(char *buffer) {
 	memcpy(buffer + offset, &net_request_type, sizeof(net_request_type));
 }
 
-void Request::Unmarshal(char *buffer) {
+void CustomerRequest::Unmarshal(char *buffer) {
 	int net_customer_id;
 	int net_order_number;
 	int net_request_type;
@@ -53,102 +191,14 @@ void Request::Unmarshal(char *buffer) {
 	request_type = ntohl(net_request_type);
 }
 
-bool Request::IsValid() {
+bool CustomerRequest::IsValid() {
 	return (customer_id != -1);
 }
 
-void Request::Print() {
+void CustomerRequest::Print() {
 	std::cout << "id " << customer_id << " ";
 	std::cout << "num " << order_number << " ";
 	std::cout << "type " << request_type << std::endl;
-}
-
-ReplicationRequest::ReplicationRequest() {
-	factory_id = -1;
-	last_index = -1;
-	committed_index = -1;
-	updt = {-1, -1, -1};
-}
-
-void ReplicationRequest::SetRequest(int fid, int lidx, int cidx, MapOp updmp) {
-	factory_id = fid;
-	last_index = lidx;
-	committed_index = cidx;
-	updt = updmp;
-}
-
-int ReplicationRequest::GetFactoryId() { return factory_id; }
-int ReplicationRequest::GetLastIndex() { return last_index; }
-int ReplicationRequest::GetCommittedIndex() { return committed_index; }
-MapOp ReplicationRequest::GetUpdateMap() { return updt; }
-
-int ReplicationRequest::Size() {
-	return sizeof(factory_id) + sizeof(last_index) + sizeof(committed_index) +
-	sizeof(updt.opcode) + sizeof(updt.arg1) + sizeof(updt.arg2);
-}
-
-void ReplicationRequest::Marshal(char *buffer) {
-	int net_factory_id = htonl(factory_id);
-	int net_last_index = htonl(last_index);
-	int net_committed_index = htonl(committed_index);
-	int net_opcode = htonl(updt.opcode);
-	int net_arg1 = htonl(updt.arg1);
-	int net_arg2 = htonl(updt.arg2);
-	int offset = 0;
-
-	memcpy(buffer + offset, &net_factory_id, sizeof(net_factory_id));
-	offset += sizeof(net_factory_id);
-	memcpy(buffer + offset, &net_last_index, sizeof(net_last_index));
-	offset += sizeof(net_last_index);
-	memcpy(buffer + offset, &net_committed_index, sizeof(net_committed_index));
-	offset += sizeof(net_committed_index);
-	memcpy(buffer + offset, &net_opcode, sizeof(net_opcode));
-	offset += sizeof(net_opcode);
-	memcpy(buffer + offset, &net_arg1, sizeof(net_arg1));
-	offset += sizeof(net_arg1);
-	memcpy(buffer + offset, &net_arg2, sizeof(net_arg2));
-}
-
-void ReplicationRequest::Unmarshal(char *buffer) {
-	int net_factory_id;
-	int net_last_index;
-	int net_committed_index;
-	int net_opcode;
-	int net_arg1;
-	int net_arg2;
-	int offset = 0;
-
-	memcpy(&net_factory_id, buffer + offset, sizeof(net_factory_id));
-	offset += sizeof(net_factory_id);
-	memcpy(&net_last_index, buffer + offset, sizeof(net_last_index));
-	offset += sizeof(net_last_index);
-	memcpy(&net_committed_index, buffer + offset, sizeof(net_committed_index));
-	offset += sizeof(net_committed_index);
-	memcpy(&net_opcode, buffer + offset, sizeof(net_opcode));
-	offset += sizeof(net_opcode);
-	memcpy(&net_arg1, buffer + offset, sizeof(net_arg1));
-	offset += sizeof(net_arg1);
-	memcpy(&net_arg2, buffer + offset, sizeof(net_arg2));
-
-	factory_id = ntohl(net_factory_id);
-	last_index = ntohl(net_last_index);
-	committed_index = ntohl(net_committed_index);
-	updt.opcode = ntohl(net_opcode);
-	updt.arg1 = ntohl(net_arg1);
-	updt.arg2 = ntohl(net_arg2);
-}
-
-bool ReplicationRequest::IsValid() {
-	return (factory_id > 0);
-}
-
-void ReplicationRequest::Print() {
-	std::cout << "id " << factory_id << " ";
-	std::cout << "lidx " << last_index << " ";
-	std::cout << "cidx " << committed_index << " ";
-	std::cout << "map.opcode " << updt.opcode << " ";
-	std::cout << "map.arg1 " << updt.arg1 << " ";
-	std::cout << "map.arg2 " << updt.arg2 << std::endl;
 }
 
 LaptopInfo::LaptopInfo() {
@@ -159,15 +209,15 @@ LaptopInfo::LaptopInfo() {
 	admin_id = -1;
 }
 
-void LaptopInfo::SetInfo(int id, int number, int type, int engid, int admid) {
+void LaptopInfo::SetInfo(int id, int number, int type, int engid, int expid) {
 	customer_id = id;
 	order_number = number;
 	request_type = type;
 	engineer_id = engid;
-	admin_id = admid;
+	admin_id = expid;
 }
 
-void LaptopInfo::CopyOrder(Request order) {
+void LaptopInfo::CopyOrder(CustomerRequest order) {
 	customer_id = order.GetCustomerId();
 	order_number = order.GetOrderNumber();
 	request_type = order.GetRequestType();
@@ -241,71 +291,4 @@ void LaptopInfo::Print() {
 	std::cout << "type " << request_type << " ";
 	std::cout << "engid " << engineer_id << " ";
 	std::cout << "admid " << admin_id << std::endl;
-}
-
-CustomerRecord::CustomerRecord() {
-	customer_id = -1;
-	last_order = -1;
-}
-
-void CustomerRecord::SetRecord(int cid, int lst_odr) {
-	customer_id = cid;
-	last_order = lst_odr;
-}
-
-int CustomerRecord::GetCustomerId() { return customer_id; }
-int CustomerRecord::GetLastOrder() { return last_order; }
-
-int CustomerRecord::Size() {
-	return sizeof(customer_id) + sizeof(last_order);
-}
-
-void CustomerRecord::Marshal(char *buffer) {
-	int net_customer_id = htonl(customer_id);
-	int net_last_order = htonl(last_order);
-	int offset = 0;
-
-	memcpy(buffer + offset, &net_customer_id, sizeof(net_customer_id));
-	offset += sizeof(net_customer_id);
-	memcpy(buffer + offset, &net_last_order, sizeof(net_last_order));
-	offset += sizeof(net_last_order);
-}
-
-void CustomerRecord::Unmarshal(char *buffer) {
-	int net_customer_id;
-	int net_last_order;
-	int offset = 0;
-
-	memcpy(&net_customer_id, buffer + offset, sizeof(net_customer_id));
-	offset += sizeof(net_customer_id);
-	memcpy(&net_last_order, buffer + offset, sizeof(net_last_order));
-	offset += sizeof(net_last_order);
-
-	customer_id = ntohl(net_customer_id);
-	last_order = ntohl(net_last_order);
-}
-
-bool CustomerRecord::IsValid() {
-	return (customer_id != -1);
-}
-
-void CustomerRecord::Print() {
-	std::cout << customer_id << "	" << last_order << std::endl;
-}
-
-void MarshalIdent(char *buffer, int ident) {
-	int net_ident = htonl(ident);
-
-	memcpy(buffer, &net_ident, sizeof(net_ident));
-
-}
-
-int UnmarshalIdent(char *buffer) {
-	int net_ident;
-
-	memcpy(&net_ident, buffer, sizeof(int));
-
-	int ident = ntohl(net_ident);
-
-	return ident;
 }

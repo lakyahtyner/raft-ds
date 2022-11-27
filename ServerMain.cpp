@@ -1,82 +1,101 @@
 #include <chrono>
 #include <iostream>
-#include <fstream>
-#include <string>
-#include <cstring>
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <stdio.h>
-#include <string.h>
+#include <fstream>
 
 #include "ServerSocket.h"
 #include "ServerThread.h"
 
+int LaptopFactory::unique_id;
+int LaptopFactory::leader_id;
+std::map<int,std::string> LaptopFactory::peer_ips;
+std::map<int,int> LaptopFactory::peer_ports;
+int LaptopFactory::n_peers;
+std::map<int,bool> LaptopFactory::peer_isalive;
+
+
 int main(int argc, char *argv[]) {
 	int port;
 	int engineer_cnt = 0;
-	int uid;
-	int leader_id;
+	int num_experts=1;
+	// int leader_id;
 
 	ServerSocket socket;
 	LaptopFactory factory;
 	std::unique_ptr<ServerSocket> new_socket;
 	std::vector<std::thread> thread_vector;
-	
-	if (argc < 1) {
+
+	if (argc < 3) {
 		std::cout << "not enough arguments" << std::endl;
-		std::cout << argv[0] << "[port #] [# admins]" << std::endl;
+		std::cout << argv[0] << "[port #] " << std::endl;
 		return 0;
 	}
-	uid = atoi(argv[1]);
+
+	LaptopFactory::unique_id = atoi(argv[1]);
+	LaptopFactory::n_peers = atoi(argv[2]);
 
 	std::string line;
 	std::ifstream myfile("./servers.txt");
 	if (myfile.is_open()) {
 		getline(myfile,line);
-		leader_id = stoi(line);
+		LaptopFactory::leader_id = stoi(line);
 
 		while (getline(myfile,line)) {
-			struct PeerServer new_peer;
-			new_peer.id = stoi(line.substr(0, 1));
-			new_peer.ip = line.substr(2, 13);
-			new_peer.port = stoi(line.substr(16, 6));
-			new_peer.is_up = 1;
-			if(new_peer.id != uid) {
-				factory.AddPeer(new_peer);
-				std::cout << new_peer.port << std::endl;
-			} else {
-				port = new_peer.port;
+
+			int peer_id = stoi(line.substr(0, 1));
+			std::string peer_ip = line.substr(2, 13);
+			int peer_port = stoi(line.substr(16, 6));
+			bool peer_isup = true;
+
+			if(peer_id != LaptopFactory::unique_id) {
+				LaptopFactory::peer_ips.insert(std::pair<int, std::string>(peer_id, peer_ip));
+				LaptopFactory::peer_ports.insert(std::pair<int,int>(peer_id, peer_port));
+				LaptopFactory:: peer_isalive.insert(std::pair<int,bool>(peer_id, peer_isup));
+				// factory.AddPeer(new_peer);
+				std::cout << peer_id << std::endl;
+				std::cout << peer_ip << std::endl;
+				std::cout << peer_port << std::endl;
+			}
+			else {
+				port = peer_port;
 			}
 		}
 		myfile.close();
-	} else {
-		std::cout << "Unable to open file";	
+	}
+	else {
+		std::cout << "Unable to open file";
 		return 0;
 	}
 
-	std::thread prod_thread(&LaptopFactory::ProductionAdminThread,
-			&factory, 0, uid);
-	thread_vector.push_back(std::move(prod_thread));
 
-	if(leader_id == uid) {
-		std::thread send_hb_thread(&LaptopFactory::SendHeartbeatThread,
+
+	for (int i = 0; i < num_experts; i++) {
+			std::thread admin_thread(&LaptopFactory::AdminThread,
+					&factory, engineer_cnt++);
+			thread_vector.push_back(std::move(admin_thread));
+		}
+
+	if(LaptopFactory::leader_id == LaptopFactory::unique_id) {
+		std::thread hb_thread(&LaptopFactory::HeartbeatThread,
 			&factory);
-		thread_vector.push_back(std::move(send_hb_thread));
-	} else {
-		std::thread start_election_thread(&LaptopFactory::StartElectionThread,
-			&factory);
-		thread_vector.push_back(std::move(start_election_thread));
+		thread_vector.push_back(std::move(hb_thread));
 	}
-	
+	else {
+		std::thread election_thread(&LaptopFactory::ElectionThread,
+			&factory);
+		thread_vector.push_back(std::move(election_thread));
+	}
+
 	if (!socket.Init(port)) {
 		std::cout << "Socket initialization failed" << std::endl;
 		return 0;
 	}
-	
+
 	while ((new_socket = socket.Accept())) {
-		std::thread engineer_thread(&LaptopFactory::EngineerThread, 
-				&factory, std::move(new_socket), 
+		std::thread engineer_thread(&LaptopFactory::EngineerThread,
+				&factory, std::move(new_socket),
 				engineer_cnt++);
 		thread_vector.push_back(std::move(engineer_thread));
 	}

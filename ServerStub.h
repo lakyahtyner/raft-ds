@@ -2,37 +2,28 @@
 #define __SERVER_STUB_H__
 
 #include <memory>
-#include <queue>
+#include <vector>
+#include<map>
 
 #include "ServerSocket.h"
 #include "Messages.h"
 
-struct PeerServer {
-	int id;
-	int port;
-	std::string ip;
-	int is_up;
-};
-
 class ServerStub {
 private:
-	std::unique_ptr<ServerSocket> in_socket;
-
+	std::unique_ptr<ServerSocket> socket;
 public:
-	std::vector<ServerSocket> peer_sockets;
+	std::map<int,ServerSocket> peer_sockets;
 	ServerStub();
 	void Init(std::unique_ptr<ServerSocket> socket);
-	Request ReceiveRequest();
-	int ShipLaptop(LaptopInfo info);
-	int ReturnRecord(CustomerRecord crcd);
-	int SendRepReq(ReplicationRequest rprqst, PeerServer peer, int i);
-	int SendRepResponse();
-	int ReceiveIdleResp(PeerServer peer, int i);
-	int SendIdent(int ident, int n);
-	int ReceiveIdent();
-	ReplicationRequest ReceiveRepReq();
-	int Connect(PeerServer peer, int i);
-	void SendHeartbeat();
+	CustomerRequest ReceiveRequest();
+	int ReceiveId();
+	int SendAdminId(ServerSocket* socket_ptr, int unique_id);
+	int SendLaptop(LaptopInfo info);
+	int ReturnRecord(CustomerRecord record);
+	int SendReplicationRequest(ServerSocket* socket_ptr, ReplicationRecord record);
+	ReplicationRecord ReceiveReplicationRequest();
+	int SendReplicationAck();
+	int ReceiveReplicationAck(ServerSocket* socket_ptr);
 };
 
 #endif // end of #ifndef __SERVER_STUB_H__

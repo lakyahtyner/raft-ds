@@ -1,96 +1,91 @@
-#include <iostream>  // remove this later
 #include "ServerStub.h"
-#include <string.h>
 #include <cstring>
-#include <iostream>
-
 #include <arpa/inet.h>
 
 ServerStub::ServerStub() {}
 
 void ServerStub::Init(std::unique_ptr<ServerSocket> socket) {
-	this->in_socket = std::move(socket);
+	this->socket = std::move(socket);
 }
 
-Request ServerStub::ReceiveRequest() {
+
+int ServerStub::SendReplicationAck(){
 	char buffer[32];
-	
-	Request rqst;
-	if (in_socket->Recv(buffer, rqst.Size(), 0)) {
-		rqst.Unmarshal(buffer);
-	}
-	
-	return rqst;
+	int rep_ack = 1;
+	int net_ack = htonl(rep_ack);
+	memcpy(buffer,&net_ack, sizeof(net_ack));
+	return socket->Send(buffer, sizeof(net_ack), 0);
 }
 
-int ServerStub::ShipLaptop(LaptopInfo info) {
+int ServerStub::ReceiveReplicationAck(ServerSocket* socket_ptr){
+	char buffer[32];
+	int net_ack=0;
+	if(socket_ptr->Recv(buffer, sizeof(net_ack), 0)){
+		memcpy(&net_ack, buffer, sizeof(net_ack));
+	}
+
+	int rep_ack = ntohl(net_ack);
+	// printf("%d\n", rep_ack);
+	return rep_ack;
+
+}
+
+
+int ServerStub::SendReplicationRequest(ServerSocket* socket_ptr, ReplicationRecord record){
+	char buffer[32];
+	record.Marshal(buffer);
+	return socket_ptr->Send(buffer, record.Size(), 0);
+}
+
+ReplicationRecord ServerStub::ReceiveReplicationRequest(){
+	char buffer[32];
+	ReplicationRecord record;
+	if (socket->Recv(buffer, record.Size(), 0)) {
+		record.Unmarshal(buffer);
+	}
+
+	return record;
+
+
+}
+
+CustomerRequest ServerStub::ReceiveRequest() {
+	char buffer[32];
+	CustomerRequest order;
+	if (socket->Recv(buffer, order.Size(), 0)) {
+		order.Unmarshal(buffer);
+	}
+	return order;
+}
+
+int ServerStub::SendAdminId(ServerSocket* socket_ptr, int unique_id){
+	char buffer[32];
+	unique_id = htonl(unique_id);
+	memcpy(buffer,&unique_id, sizeof(unique_id));
+	return socket_ptr->Send(buffer, sizeof(unique_id), 0);
+}
+
+int ServerStub::ReceiveId(){
+
+	char buffer[32];
+	int unique_id = -1;
+	int net_id = 0;
+	if(socket->Recv(buffer, sizeof(net_id), 0)){
+		memcpy(&net_id, buffer, sizeof(net_id));
+	}
+	unique_id = ntohl(net_id);
+
+	return unique_id;
+}
+
+int ServerStub::SendLaptop(LaptopInfo info) {
 	char buffer[32];
 	info.Marshal(buffer);
-	return in_socket->Send(buffer, info.Size(), 0);
+	return socket->Send(buffer, info.Size(), 0);
 }
 
-int ServerStub::ReturnRecord(CustomerRecord crcd) {
+int ServerStub::ReturnRecord(CustomerRecord record){
 	char buffer[32];
-	crcd.Marshal(buffer);
-	return in_socket->Send(buffer, crcd.Size(), 0);
-}
-
-int ServerStub::SendRepReq(ReplicationRequest rprqst, PeerServer peer, int i) {
-	char buffer[32];
-	
-	rprqst.Marshal(buffer);
-	return peer_sockets[i].Send(buffer, rprqst.Size(), 0);
-}
-
-ReplicationRequest ServerStub::ReceiveRepReq() {
-	char buffer[32];
-	
-	ReplicationRequest rprqst;
-	if (in_socket->Recv(buffer, rprqst.Size(), 0)) {
-		rprqst.Unmarshal(buffer);
-	}
-	
-	return rprqst;
-}
-
-int ServerStub::ReceiveIdleResp(PeerServer peer, int i) {
-	char buffer[32];
-
-	int resp = 0;
-	if (peer_sockets[i].Recv(buffer, sizeof(int), 0)) {
-		resp = UnmarshalIdent(buffer);
-	}
-	
-	return resp;
-}
-
-int ServerStub::SendRepResponse() {
-	char resp_buffer[32];
-
-	MarshalIdent(resp_buffer, 1);
-	
-	return in_socket->Send(resp_buffer, sizeof(int), 0);
-}
-
-int ServerStub::ReceiveIdent(){
-	char buffer[32];
-	
-	int ident = 0;
-	if (in_socket->Recv(buffer, sizeof(int), 0)) {
-		ident = UnmarshalIdent(buffer);
-	}
-	
-	return ident;
-}
-
-int ServerStub::Connect(PeerServer peer, int i) {
-	return peer_sockets[i].Connect(peer.ip, peer.port);
-}
-
-int ServerStub::SendIdent(int ident, int i) {
-	char ident_buffer[32];
-	int net_ident = htonl(2);
-
-	MarshalIdent(ident_buffer, ident);
-	return peer_sockets[i].Send(ident_buffer, sizeof(net_ident), 0);
+	record.Marshal(buffer);
+	return socket->Send(buffer, record.Size(), 0);
 }
