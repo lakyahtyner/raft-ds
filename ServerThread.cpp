@@ -7,7 +7,7 @@
 #include "ServerStub.h"
 #include "ServerSocket.h"
 
-std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(1000);
+std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(4000000);
 
 CustomerRecord LaptopFactory::
 GetCustomerRecord(Request rqst) {
@@ -216,9 +216,15 @@ void LaptopFactory::ProductionAdminThread(int id, int uid) {
 void LaptopFactory::SendHeartbeatThread() {
 	ServerStub stub;
 	struct MapOp new_log = {-2, -2, -2};
+	std::chrono::time_point<std::chrono::high_resolution_clock> curr;
+	std::chrono::duration<double> elapsed_time, adjusted_timeout;
+	adjusted_timeout = timeout - std::chrono::microseconds(200);
 
 	while(true){
-		if((std::chrono::high_resolution_clock::now() - start_time) == timeout - std::chrono::microseconds(200)) {
+		curr = std::chrono::high_resolution_clock::now();
+		elapsed_time = curr - start_time;
+
+		if(elapsed_time > adjusted_timeout) {
 			int n = 0;
 			for(PeerServer peer: peer_vector) {
 				if(peer.is_up == 1) {
