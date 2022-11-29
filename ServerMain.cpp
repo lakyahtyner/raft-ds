@@ -4,6 +4,7 @@
 #include <thread>
 #include <vector>
 #include <fstream>
+#include <sstream>
 
 #include "ServerSocket.h"
 #include "ServerThread.h"
@@ -27,14 +28,13 @@ int main(int argc, char *argv[]) {
 	std::unique_ptr<ServerSocket> new_socket;
 	std::vector<std::thread> thread_vector;
 
-	if (argc < 3) {
+	if (argc < 2) {
 		std::cout << "not enough arguments" << std::endl;
-		std::cout << argv[0] << "[port #] " << std::endl;
+		std::cout << argv[0] << " [id #] " << std::endl;
 		return 0;
 	}
 
 	LaptopFactory::unique_id = atoi(argv[1]);
-	LaptopFactory::n_peers = atoi(argv[2]);
 
 	std::string line;
 	std::ifstream myfile("./servers.txt");
@@ -43,16 +43,26 @@ int main(int argc, char *argv[]) {
 		LaptopFactory::leader_id = stoi(line);
 
 		while (getline(myfile,line)) {
+			std::stringstream ss(line);
 
-			int peer_id = stoi(line.substr(0, 1));
-			std::string peer_ip = line.substr(2, 13);
-			int peer_port = stoi(line.substr(16, 6));
+			// int peer_id = stoi(line.substr(0, 1));
+			// std::string peer_ip = line.substr(2, 13);
+			// int peer_port = stoi(line.substr(16, 6));
+
+			std::string peer_id;
+			ss >> peer_id;
+
+			std::string peer_ip;
+			ss >> peer_ip;
+
+			int peer_port;
+			ss >> peer_port;
 			bool peer_isup = true;
 
-			if(peer_id != LaptopFactory::unique_id) {
-				LaptopFactory::peer_ips.insert(std::pair<int, std::string>(peer_id, peer_ip));
-				LaptopFactory::peer_ports.insert(std::pair<int,int>(peer_id, peer_port));
-				LaptopFactory:: peer_isalive.insert(std::pair<int,bool>(peer_id, peer_isup));
+			if(peer_id != "M" && stoi(peer_id) != LaptopFactory::unique_id) {
+				LaptopFactory::peer_ips.insert(std::pair<int, std::string>(stoi(peer_id), peer_ip));
+				LaptopFactory::peer_ports.insert(std::pair<int,int>(stoi(peer_id), peer_port));
+				LaptopFactory:: peer_isalive.insert(std::pair<int,bool>(stoi(peer_id), peer_isup));
 				// factory.AddPeer(new_peer);
 				std::cout << peer_id << std::endl;
 				std::cout << peer_ip << std::endl;
@@ -69,7 +79,7 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-
+	LaptopFactory::n_peers = LaptopFactory::peer_ips.size();
 
 	for (int i = 0; i < num_experts; i++) {
 			std::thread admin_thread(&LaptopFactory::AdminThread,
