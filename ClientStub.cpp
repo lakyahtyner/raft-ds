@@ -45,3 +45,16 @@ CustomerRecord ClientStub::ReadRecord(CustomerRequest order){
 	return record;
 
 }
+
+int ClientStub::ReceiveId(){
+
+	char buffer[32];
+	int unique_id = -1;
+	int net_id = 0;
+	if(socket.Recv(buffer, sizeof(net_id), 0)){
+		memcpy(&net_id, buffer, sizeof(net_id));
+	}
+	unique_id = ntohl(net_id);
+
+	return unique_id;
+}

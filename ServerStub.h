@@ -22,8 +22,9 @@ public:
 	int ReturnRecord(CustomerRecord record);
 	int SendReplicationRequest(ServerSocket* socket_ptr, ReplicationRecord record);
 	ReplicationRecord ReceiveReplicationRequest();
-	int SendReplicationAck();
+	int SendReplicationAck(int rep_ack=1);
 	int ReceiveReplicationAck(ServerSocket* socket_ptr);
+	int SendLeaderId(int unique_id);
 };
 
 #endif // end of #ifndef __SERVER_STUB_H__

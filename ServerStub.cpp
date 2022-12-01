@@ -9,9 +9,9 @@ void ServerStub::Init(std::unique_ptr<ServerSocket> socket) {
 }
 
 
-int ServerStub::SendReplicationAck(){
+int ServerStub::SendReplicationAck(int rep_ack){
 	char buffer[32];
-	int rep_ack = 1;
+	// int rep_ack = 1;
 	int net_ack = htonl(rep_ack);
 	memcpy(buffer,&net_ack, sizeof(net_ack));
 	return socket->Send(buffer, sizeof(net_ack), 0);
@@ -19,10 +19,11 @@ int ServerStub::SendReplicationAck(){
 
 int ServerStub::ReceiveReplicationAck(ServerSocket* socket_ptr){
 	char buffer[32];
-	int net_ack=0;
+	int net_ack=-1;
 	if(socket_ptr->Recv(buffer, sizeof(net_ack), 0)){
 		memcpy(&net_ack, buffer, sizeof(net_ack));
 	}
+
 
 	int rep_ack = ntohl(net_ack);
 	// printf("%d\n", rep_ack);
@@ -88,4 +89,11 @@ int ServerStub::ReturnRecord(CustomerRecord record){
 	char buffer[32];
 	record.Marshal(buffer);
 	return socket->Send(buffer, record.Size(), 0);
+}
+
+int ServerStub::SendLeaderId(int unique_id){
+	char buffer[32];
+	unique_id = htonl(unique_id);
+	memcpy(buffer,&unique_id, sizeof(unique_id));
+	return socket->Send(buffer, sizeof(unique_id), 0);
 }
