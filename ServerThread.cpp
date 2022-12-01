@@ -56,6 +56,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 	ServerStub stub;
 	ReplicationRecord rep_record;
 	MapOp smr_obj;
+	ConfigUpdate update;
 
 	stub.Init(std::move(socket));
 	IFA_id = stub.ReceiveId();
@@ -109,8 +110,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					stub.SendReplicationAck();
 
 		}
-
-		else{
+		else if(IFA_id == -1){
 			order = stub.ReceiveRequest();
 			if (!order.IsValid()) {
 				break;
@@ -129,6 +129,24 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					std::cout << "Undefined request type: "<< request_type << std::endl;
 
 			}
+		}
+		else {
+			update = stub.ReceiveUpdateRequest();
+
+			if(update.IsValid()) {	
+				update.Print();
+			}
+
+			//create locks on peer vectors
+			// if(update.type == 1) {
+			// 	peer_ips.insert(std::pair<int, std::string>(update.id, update.ip));
+			// 	peer_ports.insert(std::pair<int,int>(update.id, update.port));
+			// 	peer_isalive.insert(std::pair<int,bool>(update.id, true));
+			// } else {
+			// 	peer_ips.erase(peer_ips.find(update.id));
+			// 	peer_ports.erase(peer_ports.find(update.id));
+			//  peer_isalive.erase(peer_isalive.find(update.id));
+			// }
 		}
 	}
 

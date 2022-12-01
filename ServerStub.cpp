@@ -8,7 +8,6 @@ void ServerStub::Init(std::unique_ptr<ServerSocket> socket) {
 	this->socket = std::move(socket);
 }
 
-
 int ServerStub::SendReplicationAck(){
 	char buffer[32];
 	int rep_ack = 1;
@@ -89,3 +88,19 @@ int ServerStub::ReturnRecord(CustomerRecord record){
 	record.Marshal(buffer);
 	return socket->Send(buffer, record.Size(), 0);
 }
+
+int ServerStub::SendUpdateRequest(ServerSocket* socket_ptr, ConfigUpdate update){
+	char buffer[32];
+	update.Marshal(buffer);
+	return socket_ptr->Send(buffer, update.Size(), 0);
+}
+
+ConfigUpdate ServerStub::ReceiveUpdateRequest() {
+	char buffer[32];
+	ConfigUpdate update;
+	if (socket->Recv(buffer, update.Size(), 0)) {
+		update.Unmarshal(buffer);
+	}
+	return update;
+}
+

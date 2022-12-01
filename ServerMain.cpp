@@ -45,10 +45,6 @@ int main(int argc, char *argv[]) {
 		while (getline(myfile,line)) {
 			std::stringstream ss(line);
 
-			// int peer_id = stoi(line.substr(0, 1));
-			// std::string peer_ip = line.substr(2, 13);
-			// int peer_port = stoi(line.substr(16, 6));
-
 			std::string peer_id;
 			ss >> peer_id;
 
@@ -59,7 +55,7 @@ int main(int argc, char *argv[]) {
 			ss >> peer_port;
 			bool peer_isup = true;
 
-			if(peer_id != "M" && stoi(peer_id) != LaptopFactory::unique_id) {
+			if(stoi(peer_id) != LaptopFactory::unique_id) {
 				LaptopFactory::peer_ips.insert(std::pair<int, std::string>(stoi(peer_id), peer_ip));
 				LaptopFactory::peer_ports.insert(std::pair<int,int>(stoi(peer_id), peer_port));
 				LaptopFactory:: peer_isalive.insert(std::pair<int,bool>(stoi(peer_id), peer_isup));
@@ -82,10 +78,10 @@ int main(int argc, char *argv[]) {
 	LaptopFactory::n_peers = LaptopFactory::peer_ips.size();
 
 	for (int i = 0; i < num_experts; i++) {
-			std::thread admin_thread(&LaptopFactory::AdminThread,
-					&factory, engineer_cnt++);
-			thread_vector.push_back(std::move(admin_thread));
-		}
+		std::thread admin_thread(&LaptopFactory::AdminThread,
+				&factory, engineer_cnt++);
+		thread_vector.push_back(std::move(admin_thread));
+	}
 
 	if(LaptopFactory::leader_id == LaptopFactory::unique_id) {
 		std::thread hb_thread(&LaptopFactory::HeartbeatThread,

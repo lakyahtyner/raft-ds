@@ -133,5 +133,41 @@ public:
 	void Print();
 };
 
+class ConfigUpdate {
+private:
+	int type;
+	int id;
+	int ip_1;
+	int ip_2;
+	int ip_3;
+	int port;
+	
+public:
+	ConfigUpdate();
+	void operator = (const ConfigUpdate &update) {
+		type = update.type;
+		id = update.id;
+		ip_1 = update.ip_1;
+		ip_2 = update.ip_2;
+		ip_3 = update.ip_3;
+		port = update.port;
+	}
+
+	void SetUpdate(int type, int id, int ip_1, int ip_2, int ip_3, int port);
+	int GetType();
+	int GetId();
+	std::string GetIp();
+	int GetPort();
+
+	int Size();
+
+	void Marshal(char *buffer);
+	void Unmarshal(char *buffer);
+
+	bool IsValid();
+	void Print();
+
+};
+
 
 #endif // #ifndef __MESSAGES_H__

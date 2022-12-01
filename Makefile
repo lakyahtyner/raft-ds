@@ -15,19 +15,34 @@ OBJS := $(SRCS:.cpp=.o)		# replaces .cpp extension to .o (e.g., main.cpp -> main
 				# and stores the names to OBJS
 
 # $(wildcard Server*.h) finds all file names with patterns ("Server" + random string + ".h")
-SVR_HDRS := $(wildcard Server*.h)	
-SVR_SRCS := $(wildcard Server*.cpp)
-SVR_OBJS := $(SVR_SRCS:.cpp=.o)
+SVRW_HDRS := $(wildcard Server*.h)	
+SVRW_SRCS := $(wildcard Server*.cpp)
+SVRW_OBJS := $(SVRW_SRCS:.cpp=.o)
 
 # $(wildcard Client*.h) finds all file names with patterns ("Client" + random string + ".h")
 CLNT_HDRS := $(wildcard Client*.h)
 CLNT_SRCS := $(wildcard Client*.cpp)
 CLNT_OBJS := $(CLNT_SRCS:.cpp=.o)
 
+# $(wildcard Mgmt*.h) finds all file names with patterns (Mgmt" + random string + ".h")
+MGMT_HDRS := $(wildcard Mgmt*.h)
+MGMT_SRCS := $(wildcard Mgmt*.cpp)
+MGMT_OBJS := $(MGMT_SRCS:.cpp=.o)
+
 # $(filter-out X Y Z, A) removes X Y and Z from A if X Y Z are found in A
-CMN_HDRS := $(filter-out $(SVR_HDRS) $(CLNT_HDRS), $(HDRS))
-CMN_SRCS := $(filter-out $(SVR_SRCS) $(CLNT_SRCS), $(SRCS))
+CMN_HDRS := $(filter-out $(SVRW_HDRS) $(CLNT_HDRS) $(MGMT_HDRS), $(HDRS))
+CMN_SRCS := $(filter-out $(SVRW_SRCS) $(CLNT_SRCS) $(MGMT_SRCS), $(SRCS))
 CMN_OBJS := $(CMN_SRCS:.cpp=.o)
+
+# $(filter-out X Y Z, A) removes X Y and Z from A if X Y Z are found in A
+CMN2_HDRS := $(filter-out ServerMain.h, $(SVRW_HDRS))
+CMN2_SRCS := $(filter-out ServerMain.cpp, $(SVRW_SRCS))
+CMN2_OBJS := $(CMN2_SRCS:.cpp=.o)
+
+# $(Server.h)
+SVR_HDRS := $(filter-out $(CMN2_HDRS), $(SVRW_HDRS))
+SVR_SRCS := $(filter-out $(CMN2_SRCS), $(SVRW_SRCS))
+SVR_OBJS := $(SVR_SRCS:.cpp=.o)
 
 
 # -Wall prints: all warnings
@@ -38,7 +53,7 @@ CFLAGS := -Wall -std=c++11
 LFLAGS := -pthread 
 
 # we are building two target binaries: server and client
-TARGET := server client
+TARGET := server client mgmt
 
 #-------------------------------------------------------------------------------
 # 2. What to build and how to build them
@@ -84,7 +99,7 @@ debug: $(TARGET)
 #    in the folder the make program won't be able to execute the g++ command and
 #    it will look for another rules to create the object (.o) files
 
-server: $(SVR_OBJS) $(CMN_OBJS)
+server: $(SVR_OBJS) $(CMN2_OBJS) $(CMN_OBJS)
 	$(CXX) $(LFLAGS) -o $@ $^ 
 
 # This rule defines how to build the server specific object files.
@@ -103,11 +118,22 @@ client: $(CLNT_OBJS) $(CMN_OBJS)
 
 $(CLNT_OBJS): $(CLNT_SRCS) $(CLNT_HDRS)
 	$(CXX) $(CFLAGS) $(DFLAGS) -c $(CLNT_SRCS)
+
+
+# Same applies to the mgmt program.
+mgmt: $(MGMT_OBJS) $(CMN2_OBJS) $(CMN_OBJS)
+	$(CXX) $(LFLAGS) -o $@ $^ 
+
+$(MGMT_OBJS): $(MGMT_SRCS) $(MGMT_HDRS)
+	$(CXX) $(CFLAGS) $(DFLAGS) -c $(MGMT_SRCS)
 	
 
 # This rule compiles the common source code into object files.
 $(CMN_OBJS): $(CMN_SRCS) $(CMN_HDRS)
 	$(CXX) $(CFLAGS) $(DFLAGS) -c $(CMN_SRCS)
+
+$(CMN2_OBJS): $(CMN2_SRCS) $(CMN2_HDRS)
+	$(CXX) $(CFLAGS) $(DFLAGS) -c $(CMN2_SRCS)
 
 # This defines how you will clean up the compiled files.
 # You can type "make clean" in the command line to delete all compiled files

@@ -24,6 +24,8 @@ public:
 	ReplicationRecord ReceiveReplicationRequest();
 	int SendReplicationAck();
 	int ReceiveReplicationAck(ServerSocket* socket_ptr);
+	int SendUpdateRequest(ServerSocket* socket_ptr, ConfigUpdate update);
+	ConfigUpdate ReceiveUpdateRequest();
 };
 
 #endif // end of #ifndef __SERVER_STUB_H__
