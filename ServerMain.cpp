@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 	LaptopFactory::unique_id = atoi(argv[1]);
 
 	std::string line;
-	std::ifstream myfile("./servers.txt");
+	std::ifstream myfile("./servers_init.txt");
 	if (myfile.is_open()) {
 		getline(myfile,line);
 		LaptopFactory::leader_id = stoi(line);

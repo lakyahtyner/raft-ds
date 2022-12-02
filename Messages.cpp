@@ -299,25 +299,27 @@ ConfigUpdate::ConfigUpdate() {
 	ip_1 = -1;
 	ip_2 = -1;
 	ip_3 = -1;
+	ip_4 = -1;
 	port = -1;
 }
 
-void ConfigUpdate::SetUpdate(int utype, int uid, int uip_1, int uip_2, int uip_3,int uport) {
+void ConfigUpdate::SetUpdate(int utype, int uid, int uip_1, int uip_2, int uip_3, int uip_4, int uport) {
 	type = utype;
 	id = uid;
 	ip_1 = uip_1;
 	ip_2 = uip_2;
 	ip_3 = uip_3;
+	ip_4 = uip_4;
 	port = uport;
 }
 
 int ConfigUpdate::GetType() { return type; }
 int ConfigUpdate::GetId() { return id; }
-std::string ConfigUpdate::GetIp() { return  std::to_string(ip_1) + "." + std::to_string(ip_2) + "." + std::to_string(ip_3); }
+std::string ConfigUpdate::GetIp() { return  std::to_string(ip_1) + "." + std::to_string(ip_2) + "." + std::to_string(ip_3) + "." + std::to_string(ip_4); }
 int ConfigUpdate::GetPort() { return port; }
 
 int ConfigUpdate::Size() {
-	return sizeof(type) + sizeof(id) + sizeof(ip_1) + sizeof(ip_2) + sizeof(ip_3)
+	return sizeof(type) + sizeof(id) + sizeof(ip_1) + sizeof(ip_2) + sizeof(ip_3) + sizeof(ip_4)
 		+ sizeof(port);
 }
 
@@ -327,6 +329,7 @@ void ConfigUpdate::Marshal(char *buffer) {
 	int net_ip_1 = htonl(ip_1);
 	int net_ip_2 = htonl(ip_2);
 	int net_ip_3 = htonl(ip_3);
+	int net_ip_4 = htonl(ip_4);
 	int net_port = htonl(port);
 	int offset = 0;
 
@@ -340,6 +343,8 @@ void ConfigUpdate::Marshal(char *buffer) {
 	offset += sizeof(net_ip_2);
 	memcpy(buffer + offset, &net_ip_3, sizeof(net_ip_3));
 	offset += sizeof(net_ip_3);
+	memcpy(buffer + offset, &net_ip_4, sizeof(net_ip_4));
+	offset += sizeof(net_ip_4);
 	memcpy(buffer + offset, &net_port, sizeof(net_port));
 
 }
@@ -350,6 +355,7 @@ void ConfigUpdate::Unmarshal(char *buffer) {
 	int net_ip_1;
 	int net_ip_2;
 	int net_ip_3;
+	int net_ip_4;
 	int net_port;
 	int offset = 0;
 
@@ -363,6 +369,8 @@ void ConfigUpdate::Unmarshal(char *buffer) {
 	offset += sizeof(net_ip_2);
 	memcpy(&net_ip_3, buffer + offset, sizeof(net_ip_3));
 	offset += sizeof(net_ip_3);
+	memcpy(&net_ip_4, buffer + offset, sizeof(net_ip_4));
+	offset += sizeof(net_ip_4);
 	memcpy(&net_port, buffer + offset, sizeof(net_port));
 
 	type = ntohl(net_type);
@@ -370,13 +378,14 @@ void ConfigUpdate::Unmarshal(char *buffer) {
 	ip_1 = ntohl(net_ip_1);
 	ip_2 = ntohl(net_ip_2);
 	ip_3 = ntohl(net_ip_3);
+	ip_4 = ntohl(net_ip_4);
 	port = ntohl(net_port);
 }
 
 void ConfigUpdate::Print() {
 	std::cout << "type " << type << " ";
 	std::cout << "id " << id << " ";
-	std::cout << "ip " << ip_1 << "." << ip_2 << "." << ip_3 << " ";
+	std::cout << "ip " << ip_1 << "." << ip_2 << "." << ip_3 << "." << ip_4 << " ";
 	std::cout << "port " << port << " ";
 }
 

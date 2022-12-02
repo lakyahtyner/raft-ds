@@ -140,6 +140,7 @@ private:
 	int ip_1;
 	int ip_2;
 	int ip_3;
+	int ip_4;
 	int port;
 	
 public:
@@ -150,10 +151,11 @@ public:
 		ip_1 = update.ip_1;
 		ip_2 = update.ip_2;
 		ip_3 = update.ip_3;
+		ip_4 = update.ip_4;
 		port = update.port;
 	}
 
-	void SetUpdate(int type, int id, int ip_1, int ip_2, int ip_3, int port);
+	void SetUpdate(int type, int id, int ip_1, int ip_2, int ip_3, int ip_4, int port);
 	int GetType();
 	int GetId();
 	std::string GetIp();
