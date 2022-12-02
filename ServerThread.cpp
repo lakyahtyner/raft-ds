@@ -1,10 +1,11 @@
 #include <iostream>
 #include <memory>
+#include "randutils.hpp"
 
 #include "ServerThread.h"
 #include "ServerStub.h"
 
-std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(4000000);
+std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(8000000);
 
 CustomerRecord LaptopFactory::AccessCustomerMap(CustomerRequest order) {
 	CustomerRecord record;
@@ -16,7 +17,7 @@ CustomerRecord LaptopFactory::AccessCustomerMap(CustomerRequest order) {
 	else{
 		record.SetRecord(-1,-1);
 	}
-	// map_cv.notify_one();
+
 	map_lock.unlock();
 
 	return record;
@@ -44,6 +45,34 @@ CreateLaptop(CustomerRequest order, int engineer_id) {
 	return laptop;
 }
 
+
+ServerStub LaptopFactory::MakeConnections(){
+	ServerStub stub;
+	for (auto const& peer_info : peer_ips)
+	{
+		int peer_id = peer_info.first;
+		std::string peer_ip = peer_info.second;
+		int port = peer_ports[peer_id];
+		if(stub.peer_sockets.count(peer_id) == 0){
+			ServerSocket temp_socket;
+			stub.peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
+		}
+		//Add peer alive code here
+		if(peer_isalive[peer_id]){
+			if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
+				std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
+				peer_isalive[peer_id]= false;
+			}
+			else{
+				stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
+			}
+
+		}
+
+	}
+	return stub;
+}
+
 void LaptopFactory::
 EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 	int engineer_id = id;
@@ -68,21 +97,63 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					// printf("Inside Replication Function\n");
 					rep_record = stub.ReceiveReplicationRequest();
 
-
+					//check if Leader went down Factory ID = -1
 					if(rep_record.GetFactoryId() == -1){
+						leader_lock.lock();
 						peer_isalive[IFA_id] = false;
 						primary_id = -1;
-						printf("Leader went down, Closing Follower thread \n");
+						leader_id = -1;
+						cast_vote = false;
+						printf("Leader went down, Starting Election \n");
+						leader_cv.notify_all();
+						leader_lock.unlock();
 						break;
 					}
 
-					//HeartBeat check
+					//HeartBeat check uses Factory ID = -10
 					else if(rep_record.GetFactoryId() == -10){
 						printf("Recieved HeartBeat\n");
 						start_time = std::chrono::high_resolution_clock::now();
 						stub.SendReplicationAck();
 						continue;
 					}
+
+					//Leader Election check GetFactoryId = -5
+					else if(rep_record.GetFactoryId() == -5){
+						vote_lock.lock();
+						if(!cast_vote){
+							cast_vote = true;
+							//Casting a vote for the first Candidate.
+							// printf("Casting Candidate vote\n");
+							stub.SendReplicationAck(1);
+						}
+
+						else{
+							// printf("Already Casted vote\n");
+							stub.SendReplicationAck(0);
+						}
+						vote_lock.unlock();
+
+						leader_lock.lock();
+						// printf("Waiting for reply\n");
+						int candidate_id = stub.ReceiveId();
+						// printf("candidate_id %d\n", candidate_id);
+
+						if(candidate_id > -1){
+							// printf("candidate_id inside loop %d\n", candidate_id);
+
+							leader_id = candidate_id;
+							printf("The new leader is %d\n",leader_id);
+							// leader_cv.notify_all();
+						}
+
+						// printf("leader_id %d\n", leader_id);
+						// printf("Breaking from the loop\n");
+						leader_lock.unlock();
+
+						break;
+					}
+
 
 					map_lock.lock();
 
@@ -103,7 +174,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 						}
 
 					}
-					// map_cv.notify_one();
+
 					map_lock.unlock();
 
 					stub.SendReplicationAck();
@@ -111,19 +182,32 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 		}
 		else if(IFA_id == -1){
 			order = stub.ReceiveRequest();
+
 			if (!order.IsValid()) {
 				break;
 			}
 			request_type = order.GetRequestType();
+
+			if((unique_id != leader_id)&&(request_type == 1)){
+				break;
+			}
+
 			switch (request_type) { // harsh: build request_type functions.
 				case 1:
-					laptop = CreateLaptop(order, engineer_id);
-					stub.SendLaptop(laptop);
+						laptop = CreateLaptop(order, engineer_id);
+						stub.SendLaptop(laptop);
 					break;
 				case 2:
 					record = AccessCustomerMap(order);
 					stub.ReturnRecord(record);
+					stub.SendLeaderId(leader_id);
 					break;
+				// case 3:
+				// 	// printf("Sending leader id\n");
+				// 	leader_lock.lock();
+				// 	stub.SendLeaderId(leader_id);
+				// 	leader_lock.unlock();
+				// 	break;
 				default:
 					std::cout << "Undefined request type: "<< request_type << std::endl;
 
@@ -185,28 +269,7 @@ void LaptopFactory::AdminThread(int id) {
 		}
 		if(!connection_flag){
 
-			for (auto const& peer_info : peer_ips)
-			{
-				int peer_id = peer_info.first;
-				std::string peer_ip = peer_info.second;
-				int port = peer_ports[peer_id];
-				if(stub.peer_sockets.count(peer_id) == 0){
-					ServerSocket temp_socket;
-					stub.peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
-				}
-				//Add peer alive code here
-				if(peer_isalive[peer_id]){
-					if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
-						std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
-						peer_isalive[peer_id]= false;
-					}
-					else{
-						stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
-					}
-
-				}
-
-			}
+			stub = MakeConnections();
 			connection_flag = true;
 		}
 
@@ -268,81 +331,68 @@ void LaptopFactory::AdminThread(int id) {
 
 
 void LaptopFactory::HeartbeatThread() {
-	std::unique_lock<std::mutex> ul(erq_lock, std::defer_lock);
+	// std::unique_lock<std::mutex> ul(erq_lock, std::defer_lock);
+	// printf("Instantiated Heart Beat Thread\n");
 	MapOp smr_obj;
 	bool connection_flag = false;
 	ServerStub stub;
 	ReplicationRecord rep_record;
+	std::unique_lock<std::mutex> ul(leader_lock, std::defer_lock);
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> curr;
 	std::chrono::duration<double> elapsed_time, adjusted_timeout;
-	adjusted_timeout = timeout - std::chrono::microseconds(5000);
+	adjusted_timeout = timeout - std::chrono::microseconds(10000);
 
 	while (true) {
 
-		curr = std::chrono::high_resolution_clock::now();
-		elapsed_time = curr - start_time;
+		if (leader_id !=unique_id) {
+			leader_cv.wait(ul, [this]{ return (leader_id == unique_id); });
+		}
 
-		ul.lock();
-		if(!connection_flag){
 
-			for (auto const& peer_info : peer_ips)
-			{
-				int peer_id = peer_info.first;
-				std::string peer_ip = peer_info.second;
-				int port = peer_ports[peer_id];
-				if(stub.peer_sockets.count(peer_id) == 0){
-					ServerSocket temp_socket;
-					stub.peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
-				}
-				//Add peer alive code here
-				if(peer_isalive[peer_id]){
-					if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
-						std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
-						peer_isalive[peer_id]= false;
-					}
-					else{
-						stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
-					}
+			// if(leader_id == unique_id){
 
-				}
+			curr = std::chrono::high_resolution_clock::now();
+			elapsed_time = curr - start_time;
 
+			// ul.lock();
+			if(!connection_flag){
+				stub = MakeConnections();
+				connection_flag = true;
 			}
-			connection_flag = true;
-		}
-		ul.unlock();
+			// ul.unlock();
 
-		smr_obj.opcode = -10;
-		smr_obj.arg1 = -10;
-		smr_obj.arg2 = -10;
+			smr_obj.opcode = -10;
+			smr_obj.arg1 = -10;
+			smr_obj.arg2 = -10;
 
-		rep_record.SetRecord(-10, -10, -10, smr_obj);
+			rep_record.SetRecord(-10, -10, -10, smr_obj);
 
-		timer_lock.lock();
+			// timer_lock.lock();
 
-		if(elapsed_time > adjusted_timeout){
-			for (auto const& peer_info : peer_isalive){
-				int peer_id = peer_info.first;
-				bool peer_alive = peer_info.second;
+			if(elapsed_time > adjusted_timeout){
+				for (auto const& peer_info : peer_isalive){
+					int peer_id = peer_info.first;
+					bool peer_alive = peer_info.second;
 
+							if(peer_alive){
+									if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
+										printf("Follower %d Down\n", peer_id);
+										peer_isalive[peer_id] = false;
+									 }
 
-						if(peer_alive){
-								if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
-									printf("Follower %d Down\n", peer_id);
-									peer_isalive[peer_id] = false;
-								 }
+									if(stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id]) == -1){
+										 printf("Follower %d Down\n", peer_id);
+		 								 peer_isalive[peer_id] = false;
+									}
+							}
+					}
+					printf("HeartBeat Sent\n");
+					start_time = std::chrono::high_resolution_clock::now();
+			}
 
-								if(!stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id])){
-									 printf("Follower %d Down\n", peer_id);
-	 								 peer_isalive[peer_id] = false;
-								}
-						}
-				}
-				printf("Sent HeartBeat\n");
-				start_time = std::chrono::high_resolution_clock::now();
-		}
-
-		timer_lock.unlock();
+			// timer_lock.unlock();
+		// }
 
 	}
 
@@ -350,26 +400,133 @@ void LaptopFactory::HeartbeatThread() {
 
 void LaptopFactory::ElectionThread() {
 	ServerStub stub;
-	std::this_thread::sleep_for(std::chrono::microseconds(10000000));
-	while(true){
+	MapOp smr_obj;
+	ReplicationRecord rep_record;
+	// bool connection_flag = false;
+	std::unique_lock<std::mutex> ul(leader_lock, std::defer_lock);
 
-		timer_lock.lock();
-		if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
-			// term_number++;
-			// std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100));
-			// int n = 0;
-			// for(PeerServer peer: peer_vector) {
-			// 	if(peer.is_up == 1) {
-			// 		if(stub.Connect(peer, i) != 0){
-			// 			stub.SendIdent(term_number, n)
-			// 		};
-			// 	}
-			// 	n++;
+	// printf("ElectionThread Instantiated\n");
+	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+	while(true){
+		// if(leader_id == -1){
+		//I dont think this is needed, the timer should make the election start
+			// if (leader_id > -1) {
+				// leader_cv.wait(ul, [this]{ return (leader_id == -1); });
 			// }
-			// std::cout<<std::chrono::duration_cast<std::chrono::microseconds>(start_time).count()<<std::endl;
-			std::cout << "Leader Election started: " << unique_id << std::endl;
-			break;
-		}
-		timer_lock.unlock();
+
+			// timer_lock.lock();
+
+				if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
+					// printf("ElectionStarted\n");
+					int total_votes = 0;
+					int alive_peers = 0;
+					ServerStub stub;
+					randutils::mt19937_rng rng;
+
+	 				// std::cout << rng.uniform(1,1000) << ": Random Timer\n";
+					std::this_thread::sleep_for(std::chrono::milliseconds(int(rng.uniform(1,1000))));
+					// std::this_thread::sleep_for(std::chrono::milliseconds(10*unique_id));
+					// printf("Candidate Node Awake for Election \n");
+
+					// if(unique_id == 1){
+					// 		std::this_thread::sleep_for(std::chrono::milliseconds(1*unique_id));
+					// 		printf("Candidate Node Awake for Election \n");
+					// }
+					// else{
+					// 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+					// 		printf("Candidate Node Awake for Election \n");
+					// }
+					// std::this_thread::sleep_for(std::chrono::microseconds((rand()*500) % 5000000));
+
+					// if(!connection_flag){
+					stub = MakeConnections();
+						// connection_flag = true;
+					// }
+
+					smr_obj.opcode = -5; smr_obj.arg1 = -5; smr_obj.arg2 = -5;
+					rep_record.SetRecord(-5, -5, -5, smr_obj);
+
+
+
+					vote_lock.lock();
+
+					if(!cast_vote){
+						cast_vote = true;
+						//Casting a vote for tSelf.
+						// printf("Casting Candidate vote to self\n");
+						total_votes = total_votes + 1;
+					}
+					else{
+						// printf("Already Casted vote to a peer\n");
+					}
+
+					vote_lock.unlock();
+
+					for (auto const& peer_info : peer_isalive){
+						int peer_id = peer_info.first;
+						bool peer_alive = peer_info.second;
+
+								if(peer_alive){
+										if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
+											printf("Replication request: Node %d Down\n", peer_id);
+											peer_isalive[peer_id] = false;
+										 }
+
+										 int vote_ack = stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id]);
+
+										if(vote_ack == -1){
+											 printf("Voteack:Node %d Down\n", peer_id);
+			 								 peer_isalive[peer_id] = false;
+										}
+
+										else{
+											total_votes = total_votes + vote_ack;
+										}
+
+										alive_peers = alive_peers + int(peer_isalive[peer_id]);
+								}
+						}
+
+						//Broadcast leader id to everyone
+						leader_lock.lock();
+						// printf("Alive Peers %d\n", alive_peers);
+						if(2*total_votes-1 > alive_peers){
+							printf("I am the Leader\n");
+							printf("Total Votes: %d\n",total_votes);
+
+							for (auto const& peer_info : peer_isalive){
+									int peer_id = peer_info.first;
+									bool peer_alive = peer_info.second;
+
+									if(peer_alive){
+										stub.SendAdminId(&stub.peer_sockets[peer_id], unique_id);
+									}
+							}
+
+							leader_id = unique_id;
+							// leader_cv.notify_all();
+						}
+						else{
+
+							for (auto const& peer_info : peer_isalive){
+									int peer_id = peer_info.first;
+									bool peer_alive = peer_info.second;
+
+									if(peer_alive){
+										stub.SendAdminId(&stub.peer_sockets[peer_id], -1);
+									}
+							}
+
+						}
+						start_time = std::chrono::high_resolution_clock::now();
+						leader_cv.notify_all();
+						leader_lock.unlock();
+
+						// printf("Total Alive Peers %d\n",alive_peers);
+
+						// break;
+				}
+			// timer_lock.unlock();
+		// }
 	}
 }

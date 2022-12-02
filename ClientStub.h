@@ -15,6 +15,7 @@ public:
 	int SendId(int unique_id);
 	LaptopInfo OrderLaptop(CustomerRequest order);
 	CustomerRecord ReadRecord(CustomerRequest order);
+	int ReceiveId();
 };
 
 

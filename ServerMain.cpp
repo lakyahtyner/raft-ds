@@ -10,7 +10,7 @@
 #include "ServerThread.h"
 
 int LaptopFactory::unique_id;
-int LaptopFactory::leader_id;
+// int LaptopFactory::leader_id = -1;
 std::map<int,std::string> LaptopFactory::peer_ips;
 std::map<int,int> LaptopFactory::peer_ports;
 int LaptopFactory::n_peers;
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 	std::ifstream myfile("./servers_init.txt");
 	if (myfile.is_open()) {
 		getline(myfile,line);
-		LaptopFactory::leader_id = stoi(line);
+		// LaptopFactory::leader_id = stoi(line);
 
 		while (getline(myfile,line)) {
 			std::stringstream ss(line);
@@ -60,9 +60,9 @@ int main(int argc, char *argv[]) {
 				LaptopFactory::peer_ports.insert(std::pair<int,int>(stoi(peer_id), peer_port));
 				LaptopFactory:: peer_isalive.insert(std::pair<int,bool>(stoi(peer_id), peer_isup));
 				// factory.AddPeer(new_peer);
-				std::cout << peer_id << std::endl;
+				// std::cout << peer_id << std::endl;
 				std::cout << peer_ip << std::endl;
-				std::cout << peer_port << std::endl;
+				// std::cout << peer_port << std::endl;
 			}
 			else {
 				port = peer_port;
@@ -83,16 +83,24 @@ int main(int argc, char *argv[]) {
 		thread_vector.push_back(std::move(admin_thread));
 	}
 
-	if(LaptopFactory::leader_id == LaptopFactory::unique_id) {
-		std::thread hb_thread(&LaptopFactory::HeartbeatThread,
-			&factory);
+
+		std::thread hb_thread(&LaptopFactory::HeartbeatThread,&factory);
 		thread_vector.push_back(std::move(hb_thread));
-	}
-	else {
-		std::thread election_thread(&LaptopFactory::ElectionThread,
-			&factory);
+
+		std::thread election_thread(&LaptopFactory::ElectionThread, &factory);
 		thread_vector.push_back(std::move(election_thread));
-	}
+
+
+	// if(LaptopFactory::leader_id == LaptopFactory::unique_id) {
+	// 	std::thread hb_thread(&LaptopFactory::HeartbeatThread,
+	// 		&factory);
+	// 	thread_vector.push_back(std::move(hb_thread));
+	// }
+	// else {
+	// 	std::thread election_thread(&LaptopFactory::ElectionThread,
+	// 		&factory);
+	// 	thread_vector.push_back(std::move(election_thread));
+	// }
 
 	if (!socket.Init(port)) {
 		std::cout << "Socket initialization failed" << std::endl;

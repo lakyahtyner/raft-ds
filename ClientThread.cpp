@@ -48,6 +48,7 @@ ThreadBody(std::string ip, int port, int id, int orders, int type) {
 		}
 
 		else if(request_type == 3){
+			int leader_id = -1;
 			for (int i = 0; i < num_orders; i++) {
 				CustomerRequest order;
 				CustomerRecord record;
@@ -55,13 +56,28 @@ ThreadBody(std::string ip, int port, int id, int orders, int type) {
 
 				timer.Start();
 				record = stub.ReadRecord(order);
+				leader_id = stub.ReceiveId();
 				timer.EndAndMerge();
 
 				if (record.IsValid()){
 					record.Print();
 				}
 			}
+			printf("Current Leader Id: %d\n", leader_id);
 		}
+
+		// else if(request_type == 4){
+		//
+		// 	printf("Need Leader\n");
+		// 	CustomerRequest order;
+		// 	// CustomerRecord record;
+		// 	order.SetOrder(customer_id, -1, 3);
+		//
+		// 	timer.Start();
+		// 	int leader_id = stub.ReceiveId();
+		// 	timer.EndAndMerge();
+		// 	printf("Current Leader Id: %d\n", leader_id);
+		// }
 
 
 		else{

@@ -11,6 +11,7 @@
 
 #include "Messages.h"
 #include "ServerSocket.h"
+#include "ServerStub.h"
 
 struct ExpertRequest {
 	LaptopInfo laptop;
@@ -28,25 +29,30 @@ private:
 	std::vector<MapOp> smr_log;
 	std::mutex log_lock;
 	std::mutex map_lock;
-	std::condition_variable map_cv;
 	std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
 	std::mutex timer_lock;
 	// std::condition_variable timer_cv;
+	bool cast_vote = 0;
+	std::mutex vote_lock;
+
+	int leader_id = -1; //Leader Id for Raft
+	std::condition_variable leader_cv;
+	std::mutex leader_lock;
 
 
 
 
 	CustomerRecord AccessCustomerMap(CustomerRequest order);
 	LaptopInfo CreateLaptop(CustomerRequest order, int engineer_id);
+	ServerStub MakeConnections();
 public:
 	static int unique_id; //this is the same as factory_id
 	static int n_peers;
 	static std::map<int,bool> peer_isalive;
 	static std::map<int,std::string> peer_ips;
 	static std::map<int,int> peer_ports;
-	static int leader_id; //Leader Id for Raft
-	
 
+	
 	int last_index = -1;
 	int committed_index = -1;
 	int primary_id = -1;

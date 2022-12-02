@@ -90,6 +90,6 @@ bool Socket::IsNagleOn() {
 void Socket::Close() {
 	shutdown(fd_, SHUT_RDWR);
 	close(fd_);
-	//perror("Socket closed");
+	// perror("Socket closed");
 	is_initialized_ = false;
 }
