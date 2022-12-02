@@ -88,7 +88,7 @@ void addNode(){
 		std::cout << "Enter segment 4 for ip for the new node: ";
 		std::cin >> ip_4;
 
-		ip = ip_1 + "." + ip_2 + "." + ip_3 + "." + ip_4;;
+		ip = ip_1 + "." + ip_2 + "." + ip_3 + "." + ip_4;
 		bool statement = stoi(ip_1) > 0 && stoi(ip_1) < 256 &&
 							stoi(ip_2) > 0 && stoi(ip_2) < 256 &&
 							stoi(ip_3) > 0 && stoi(ip_3) < 256 &&

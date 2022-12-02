@@ -45,6 +45,7 @@ public:
 	static std::map<int,std::string> peer_ips;
 	static std::map<int,int> peer_ports;
 	static int leader_id; //Leader Id for Raft
+	
 
 	int last_index = -1;
 	int committed_index = -1;

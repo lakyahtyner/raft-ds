@@ -6,7 +6,6 @@
 
 std::chrono::duration<double, std::micro> timeout = std::chrono::microseconds(4000000);
 
-
 CustomerRecord LaptopFactory::AccessCustomerMap(CustomerRequest order) {
 	CustomerRecord record;
 	int id = order.GetCustomerId();
@@ -137,16 +136,25 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 				update.Print();
 			}
 
-			//create locks on peer vectors
-			// if(update.type == 1) {
-			// 	peer_ips.insert(std::pair<int, std::string>(update.id, update.ip));
-			// 	peer_ports.insert(std::pair<int,int>(update.id, update.port));
-			// 	peer_isalive.insert(std::pair<int,bool>(update.id, true));
-			// } else {
-			// 	peer_ips.erase(peer_ips.find(update.id));
-			// 	peer_ports.erase(peer_ports.find(update.id));
-			//  peer_isalive.erase(peer_isalive.find(update.id));
-			// }
+			std::cout << "Size Before: "<< peer_ips.size() << std::endl;
+			int id = update.GetId();
+			if(update.GetType() == 1) {
+				ServerSocket temp_socket;
+				peer_ips.insert(std::pair<int, std::string>(id, update.GetIp()));
+				peer_ports.insert(std::pair<int,int>(id, update.GetPort()));
+				peer_isalive.insert(std::pair<int,bool>(id, true));
+				stub.peer_sockets.insert(std::pair<int,ServerSocket>(id, temp_socket));
+			} else {
+				if(peer_ips.count(id)) {
+					peer_ips.erase(peer_ips.find(id));
+					peer_ports.erase(peer_ports.find(id));
+					peer_isalive.erase(peer_isalive.find(id));
+					stub.peer_sockets.erase(stub.peer_sockets.find(id));
+				}
+				
+			}
+			
+			std::cout << "Size After: "<< peer_ips.size() << std::endl;
 		}
 	}
 
