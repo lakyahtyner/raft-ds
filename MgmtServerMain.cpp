@@ -72,6 +72,7 @@ void addNode(){
 	int id = it->first + 1;
 
 	bool good_ip = false;
+	bool ip_found = false;
 	std::string ip;
 	std::string ip_1, ip_2, ip_3, ip_4;
 	while(!good_ip) {
@@ -95,10 +96,13 @@ void addNode(){
 		if(statement){
 			for(const auto& peer_ip : LaptopFactory::peer_ips){
 				if(peer_ip.second == ip) {
+					ip_found = true;
 					std::cout << "This ip already exists" << std::endl;
-				} else {
-					good_ip = true;
-				}
+				} 
+			}
+
+			if(!ip_found) {
+				good_ip = true;
 			}
 		} else {
 			std::cout << "This ip is out of range" << std::endl;
@@ -176,10 +180,6 @@ void removeNode(){
 		for (auto const& peer_info : LaptopFactory::peer_ips) {
 			if(LaptopFactory::peer_isalive[peer_info.first]){
 				stub.SendUpdateRequest(&stub.peer_sockets[peer_info.first], update);
-				
-				// LaptopFactory::peer_ips.erase(LaptopFactory::peer_ips.find(stoi(id)));
-				// LaptopFactory::peer_ports.erase(LaptopFactory::peer_ports.find(stoi(id)));
-				// LaptopFactory::peer_isalive.erase(LaptopFactory::peer_isalive.find(stoi(id)));
 
 				std::cout << "Node successfully deleted from " << peer_info.first << std::endl;
 			}
