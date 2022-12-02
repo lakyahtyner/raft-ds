@@ -61,6 +61,7 @@ public:
 	void AdminThread(int id);
 	void HeartbeatThread();
 	void ElectionThread();
+	void SendLog(ServerStub* stub, int id, bool last_only);
 };
 
 #endif // end of #ifndef __SERVERTHREAD_H__

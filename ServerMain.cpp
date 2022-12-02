@@ -18,7 +18,7 @@ std::map<int,bool> LaptopFactory::peer_isalive;
 
 
 int main(int argc, char *argv[]) {
-	int port;
+	int port = 20000;
 	int engineer_cnt = 0;
 	int num_experts=1;
 	// int leader_id;
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
 	std::string line;
 	std::ifstream myfile("./servers_init.txt");
 	if (myfile.is_open()) {
-		getline(myfile,line);
+		// getline(myfile,line);
 		// LaptopFactory::leader_id = stoi(line);
 
 		while (getline(myfile,line)) {
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 				// std::cout << peer_port << std::endl;
 			}
 			else {
-				port = peer_port;
+				port = 20000;
 			}
 		}
 		myfile.close();
@@ -89,18 +89,6 @@ int main(int argc, char *argv[]) {
 
 		std::thread election_thread(&LaptopFactory::ElectionThread, &factory);
 		thread_vector.push_back(std::move(election_thread));
-
-
-	// if(LaptopFactory::leader_id == LaptopFactory::unique_id) {
-	// 	std::thread hb_thread(&LaptopFactory::HeartbeatThread,
-	// 		&factory);
-	// 	thread_vector.push_back(std::move(hb_thread));
-	// }
-	// else {
-	// 	std::thread election_thread(&LaptopFactory::ElectionThread,
-	// 		&factory);
-	// 	thread_vector.push_back(std::move(election_thread));
-	// }
 
 	if (!socket.Init(port)) {
 		std::cout << "Socket initialization failed" << std::endl;

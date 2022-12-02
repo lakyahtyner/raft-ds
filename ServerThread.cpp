@@ -60,7 +60,7 @@ ServerStub LaptopFactory::MakeConnections(){
 		//Add peer alive code here
 		if(peer_isalive[peer_id]){
 			if (!stub.peer_sockets[peer_id].Init(peer_ip, port)) {
-				std::cout << "Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
+				std::cout << "Make Connections Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
 				peer_isalive[peer_id]= false;
 			}
 			else{
@@ -71,6 +71,67 @@ ServerStub LaptopFactory::MakeConnections(){
 
 	}
 	return stub;
+}
+
+void LaptopFactory::SendLog(ServerStub* stub, int id, bool last_only){
+	int peer_id = id;
+	std::string peer_ip = peer_ips[peer_id];
+	int port = peer_ports[peer_id];
+
+	if(stub->peer_sockets.count(peer_id) == 0){
+		ServerSocket temp_socket;
+		stub->peer_sockets.insert(std::pair<int,ServerSocket>(peer_id, temp_socket));
+	}
+	
+	if (!stub->peer_sockets[peer_id].Init(peer_ip, port)) {
+		std::cout << "Send Log Server id " << peer_id << " failed to connect, Backup Server down: "<< peer_id << std::endl;
+		peer_isalive[peer_id] = false;
+	}
+	else {
+		stub->SendAdminId(&stub->peer_sockets[peer_id], unique_id);
+		peer_isalive[peer_id] = true;
+	}
+
+
+	if(peer_isalive[peer_id] == true) {
+		log_lock.lock();
+		int c_index  = -1;
+		int l_index = -1;
+		int i = 0;
+
+		if(last_only) {
+			i = smr_log.size() - 1;
+			l_index = last_index - 1;
+			c_index = last_index - 2;
+		}
+
+		for(; i < smr_log.size(); i++) {
+			MapOp log = smr_log[i];
+			MapOp smr_obj;
+			ReplicationRecord rep_record;
+
+			smr_obj.opcode = log.opcode;
+			smr_obj.arg1 = log.arg1;
+			smr_obj.arg2 = log.arg2;
+
+			l_index++;
+			rep_record.SetRecord(unique_id, c_index, l_index, smr_obj);
+			if(!stub->SendReplicationRequest(&stub->peer_sockets[peer_id], rep_record)){
+				printf("Send Log Backup Server Down: %d\n", peer_id);
+				peer_isalive[peer_id] = false;
+
+			}
+			else{
+				// printf("peer_id_alive %d\n",peer_id);
+				stub->ReceiveReplicationAck(&stub->peer_sockets[peer_id]);
+				// printf("Received Ack from peer %d\n",peer_id);
+			}
+			c_index = l_index;
+		}
+
+		log_lock.unlock();
+	}
+	
 }
 
 void LaptopFactory::
@@ -158,6 +219,7 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 					map_lock.lock();
 
 					primary_id = rep_record.GetFactoryId();
+					leader_id = rep_record.GetFactoryId();
 					last_index = rep_record.GetLastIndex();
 					rep_record.GetMapObj(smr_obj);
 					smr_log.push_back(smr_obj);
@@ -218,27 +280,23 @@ EngineerThread(std::unique_ptr<ServerSocket> socket, int id) {
 
 			if(update.IsValid()) {	
 				update.Print();
+			} else {
+				break;
 			}
 
-			std::cout << "Size Before: "<< peer_ips.size() << std::endl;
 			int id = update.GetId();
 			if(update.GetType() == 1) {
-				ServerSocket temp_socket;
 				peer_ips.insert(std::pair<int, std::string>(id, update.GetIp()));
 				peer_ports.insert(std::pair<int,int>(id, update.GetPort()));
-				peer_isalive.insert(std::pair<int,bool>(id, true));
-				stub.peer_sockets.insert(std::pair<int,ServerSocket>(id, temp_socket));
+				peer_isalive.insert(std::pair<int,bool>(id, false));
 			} else {
 				if(peer_ips.count(id)) {
 					peer_ips.erase(peer_ips.find(id));
 					peer_ports.erase(peer_ports.find(id));
 					peer_isalive.erase(peer_isalive.find(id));
-					stub.peer_sockets.erase(stub.peer_sockets.find(id));
 				}
 				
 			}
-			
-			std::cout << "Size After: "<< peer_ips.size() << std::endl;
 		}
 	}
 
@@ -303,6 +361,8 @@ void LaptopFactory::AdminThread(int id) {
 	 				 // printf("Received Ack from peer %d\n",peer_id);
 				 }
 
+			} else {
+				SendLog(&stub, peer_id, true);
 			}
 		}
 
@@ -377,14 +437,16 @@ void LaptopFactory::HeartbeatThread() {
 
 							if(peer_alive){
 									if(!stub.SendReplicationRequest(&stub.peer_sockets[peer_id], rep_record)){
-										printf("Follower %d Down\n", peer_id);
+										std::cout << "Send Rep Follower " <<  peer_id <<" Down" << std::endl;
 										peer_isalive[peer_id] = false;
 									 }
 
 									if(stub.ReceiveReplicationAck(&stub.peer_sockets[peer_id]) == -1){
-										 printf("Follower %d Down\n", peer_id);
+										 std::cout << "Receive Rep Follower " <<  peer_id <<" Down" << std::endl;
 		 								 peer_isalive[peer_id] = false;
 									}
+							} else {
+								SendLog(&stub, peer_id, false);
 							}
 					}
 					printf("HeartBeat Sent\n");
@@ -417,6 +479,7 @@ void LaptopFactory::ElectionThread() {
 			// timer_lock.lock();
 
 				if((std::chrono::high_resolution_clock::now() - start_time) > timeout) {
+					auto s = std::chrono::system_clock::now();
 					// printf("ElectionStarted\n");
 					int total_votes = 0;
 					int alive_peers = 0;
@@ -519,6 +582,11 @@ void LaptopFactory::ElectionThread() {
 
 						}
 						start_time = std::chrono::high_resolution_clock::now();
+
+						
+						auto e = std::chrono::system_clock::now();
+        				std::chrono::duration<double> diff = e - s;
+						std::cout << diff.count() << std::endl;
 						leader_cv.notify_all();
 						leader_lock.unlock();
 

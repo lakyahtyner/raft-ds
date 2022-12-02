@@ -12,7 +12,6 @@
 #include "Messages.h"
 
 int LaptopFactory::unique_id;
-int LaptopFactory::leader_id;
 std::map<int,std::string> LaptopFactory::peer_ips;
 std::map<int,int> LaptopFactory::peer_ports;
 int LaptopFactory::n_peers;
